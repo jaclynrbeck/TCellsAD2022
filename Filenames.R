@@ -14,6 +14,9 @@ file_clonotypes_raw <- file.path(dir_vdj, "clonotypes.csv")
 file_clonotypes_annotated <- file.path(dir_vdj, "filtered_contig_annotations.csv")
 file_clonotypes_processed <- file.path(dir_cellranger, "clonotypes_processed.csv")
 
+# Gene symbols / ensembl IDs file
+file_gene_symbols <- file.path(dir_data, "gene_symbols.rds")
+
 # Epitope matching
 dir_epitope_matching <- file.path("data", "EpitopeMatching")
 dir_epitope_output <- file.path("data", "EpitopeMatching", "output")
@@ -37,7 +40,7 @@ file_seurat_norm <- file.path(dir_seurat, "seurat_umi800_integrated_SCT_reg_2022
 file_seurat_norm_cd8 <- file.path(dir_seurat, "seurat_umi800_integrated_SCT_reg_CD8_2022-02-14.rds")
 
 # Analyzed Seurat objects
-file_seurat_analyzed_allcells <- file.path(dir_seurat, "seurat_analyzed_allcells_2022-03-03.rds")
+file_seurat_analyzed_allcells <- file.path(dir_seurat, "seurat_analyzed_allcells_2022-02-03.rds")
 file_seurat_analyzed_cd8 <- file.path(dir_seurat, "seurat_analyzed_CD8_2022-02-14.rds")
 
 # All cells combined files: Cluster / Genotype markers
@@ -53,6 +56,7 @@ file_clonotypes_combined_genotypes <- file.path(dir_allcells, 'Clonotypes_byGeno
 
 # CD8 files: Cluster / Genotype markers
 dir_cd8 <- file.path(dir_data, "CD8")
+dir_cd8_go <- file.path(dir_cd8, "GO_Analysis")
 file_markers_cd8_all <- file.path(dir_cd8, "all_markers_cd8_2022-02-25.rds")
 file_markers_cd8_clusters <- file.path(dir_cd8, 'DiffGenes_byCluster_CD8_2022-02-25.xlsx')
 file_markers_cd8_genotypes <- file.path(dir_cd8, 'DiffGenes_byGenotype_CD8_2022-02-25.xlsx')

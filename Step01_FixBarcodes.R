@@ -12,7 +12,7 @@
 # well by adding "--1" to duplicated gene names and re-writing the file. 
 
 # Author: Jaclyn Beck
-# Final script for paper as of Feb 10, 2022
+# Final script for paper as of March 06, 2022
 
 library(stringr)
 
@@ -115,6 +115,10 @@ features$V2 <- make.unique(features$V2, sep = "--")
 write.table(features, 
             file=gzfile(file_features), sep='\t', row.names=FALSE, 
             col.names=FALSE, quote=FALSE)
+
+features <- features[,1:2]
+colnames(features) <- c("Ensembl.Id", "Gene.Symbol")
+saveRDS(features, file_gene_symbols)
 
 # Clear data
 rm(list=ls())

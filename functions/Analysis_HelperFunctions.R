@@ -49,10 +49,18 @@ getHighestExpressedGenes <- function( scRNA ) {
 }
 
 geneNameToEnsembl <- function(genes) {
-  features <- read.table(file = gzfile(file.path(dir_filtered_counts, "features.tsv.gz")))
-  rownames(features) <- features$V2
-  features[genes,"V1"]
+  features <- readRDS(file_gene_symbols)
+  rownames(features) <- features$Gene.Symbol
+  features[genes, "Ensembl.Id"]
 }
+
+
+ensemblToGeneName <- function(genes) {
+  features <- readRDS(file_gene_symbols)
+  rownames(features) <- features$Ensembl.Id
+  features[genes, "Gene.Symbol"]
+}
+
 
 writeDifferentialGenes <- function( sig.markers, out.file ) {
   sheets <- c()
@@ -675,7 +683,7 @@ runGOAnalysis <- function( markers, sources = c("GO", "REAC") ) {
 }
 
 
-goResultsToGem <- function( go.res.list, outfile ) {
+goResultsToGem <- function( go.res.list, outfile, use.ensembl = TRUE ) {
   go.res.up <- go.res.list[["Up"]]
   go.res.down <- go.res.list[["Down"]]
   
@@ -697,6 +705,11 @@ goResultsToGem <- function( go.res.list, outfile ) {
     colnames(gem) <- c("GO.ID", "Description", "p.Val", "Genes", "Phenotype")
     gem$FDR <- gem$p.Val
     gem <- gem[,c("GO.ID", "Description", "p.Val", "FDR", "Phenotype", "Genes")]
+    
+    if (!use.ensembl) {
+      tmp <- sapply(str_split(gem$Genes, pattern = ","), ensemblToGeneName)
+      gem$Genes <- sapply(tmp, str_c, collapse = ",")
+    }
     
     write.table(gem, file = outfile, sep = "\t", quote = F, row.names = F)
   }
