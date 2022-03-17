@@ -1,0 +1,12 @@
+﻿[gene-expression],,,,
+reference,/pub/jaclynb1/refs/cellranger/refdata-gex-mm10-2020-A,,,
+expect-cells,10000,,,
+no-bam,true,,,
+,,,,
+[vdj],,,,
+reference,/pub/jaclynb1/refs/cellranger/refdata-cellranger-vdj-GRCm38-alts-ensembl-5.0.0,,,
+,,,,
+[libraries],,,,
+fastq_id,fastqs,lanes,feature_types
+5GEX_Tau,/pub/jaclynb1/Parenchymal_SingleCell/samples21042216,any,gene expression,
+Tau_TCR,/pub/jaclynb1/Parenchymal_SingleCell/samples21042216,any,vdj,

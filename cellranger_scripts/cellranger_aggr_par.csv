@@ -1,0 +1,7 @@
+sample_id,sample_outs,donor,origin
+WT-1,/pub/jaclynb1/Parenchymal_SingleCell/CellRanger/parenchymal/WT-1_par/outs/per_sample_outs/WT-1_par/,WT-1,WT-1
+WT-2,/pub/jaclynb1/Parenchymal_SingleCell/CellRanger/parenchymal/WT-2_par/outs/per_sample_outs/WT-2_par/,WT-2,WT-2
+5XFAD-1,/pub/jaclynb1/Parenchymal_SingleCell/CellRanger/parenchymal/5XFAD-1_par/outs/per_sample_outs/5XFAD-1_par/,5XFAD-1,5XFAD-1
+5XFAD-2,/pub/jaclynb1/Parenchymal_SingleCell/CellRanger/parenchymal/5XFAD-2_par/outs/per_sample_outs/5XFAD-2_par/,5XFAD-2,5XFAD-2
+PS19,/pub/jaclynb1/Parenchymal_SingleCell/CellRanger/parenchymal/PS19_par/outs/per_sample_outs/PS19_par/,PS19,PS19
+PS-5X,/pub/jaclynb1/Parenchymal_SingleCell/CellRanger/parenchymal/PS-5X_par/outs/per_sample_outs/PS-5X_par/,PS-5X,PS-5X
