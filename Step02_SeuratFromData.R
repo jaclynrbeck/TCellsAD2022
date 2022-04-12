@@ -6,14 +6,14 @@
 # analysis.
 
 # Author: Jaclyn Beck
-# Final script used for paper as of Feb 03, 2022
+# Final script used for paper as of April 11, 2022
 
 library(Seurat)
 library(ggplot2)
 library(dplyr)
-library(cowplot)
 library(stringr)
 source(file.path("functions", "SeuratFromData_HelperFunctions.R"))
+source(file.path("functions", "Analysis_HelperFunctions.R"))
 source("Filenames.R")
 
 # Look at UMIs vs cell counts
@@ -32,47 +32,40 @@ head(scRNA@meta.data, 5)
 VlnPlot(scRNA, features = c("nFeature_RNA", "nCount_RNA", "percent.mt", 
                             "percent.rb", "complexity"), ncol=3, pt.size = 0)
 
-# Find and remove bad clusters of cells
-scRNA <- NormalizeData(scRNA)
-scRNA <- FindVariableFeatures(scRNA)
-scRNA <- ScaleData(scRNA, features = rownames(scRNA), model.use = "negbinom")
+# Identify potential doublets from TCR data -- looking for multiple beta-chains
+# only. Some T cells can express two alpha chains so we ignore that. 
+tcr.anno <- read.csv(file_clonotypes_processed)
+table(tcr.anno$Genotype)
 
-scRNA <- RunPCA(scRNA, npcs = 50, features = rownames(scRNA))
-ElbowPlot(scRNA, ndims=50)
-DimPlot(scRNA, reduction = "pca", group.by = "orig.ident", shuffle = TRUE)
+genes <- sapply(c("TRB.V", "TRB.D", "TRB.J", "TRB.C"),
+                function(X) { str_split(tcr.anno[,X], pattern = ", ") })
 
-scRNA <- FindNeighbors(scRNA, reduction="pca", dims = 1:10)
-scRNA <- FindClusters(scRNA, resolution = 1.0)
+tcr.anno$Singlet <- sapply(1:nrow(genes), function(X) {
+  lengths <- sapply(genes[X,], length)
+  all(lengths <= 1)
+})
+(table(tcr.anno$Singlet) / nrow(tcr.anno)) * 100 # Doublet rate is ~4%
 
-scRNA <- RunUMAP(scRNA, dims = 1:10)
-DimPlot(scRNA, reduction = "umap", shuffle=TRUE, label=TRUE)
-DimPlot(scRNA, group.by="orig.ident", reduction = "umap", shuffle=TRUE)
+scRNA$Singlet <- "Unknown"
+scRNA$Singlet[tcr.anno$Sample] <- tcr.anno$Singlet
+(table(scRNA$Singlet) / ncol(scRNA)) * 100 
 
-VlnPlot(scRNA, features = c("nFeature_RNA", "nCount_RNA", "percent.mt", 
-                            "percent.rb", "complexity"), ncol=3, pt.size = 0)
+# Only take Cd3+ cells or cells with a recognized TCR, remove doublets
+pos.cells <- filterOnGenePositive(scRNA, "Cd3[edg]$", 1)
+scRNA <- subset(scRNA, cells = unique(c(pos.cells, tcr.anno$Sample)))
+scRNA <- subset(scRNA, Singlet != FALSE)
 
-VlnPlot(scRNA, features = "nFeature_RNA", pt.size = 0) + 
-  geom_abline(slope = 0, intercept = 800) +
-  geom_abline(slope = 0, intercept = 1000)
-
-VlnPlot(scRNA, features = "nCount_RNA", pt.size = 0.1) + 
-  geom_abline(slope = 0, intercept = 2*median(scRNA$nCount_RNA)) +
-  geom_abline(slope = 0, intercept = 3*median(scRNA$nCount_RNA))
-
-# Clusters 12, 16, and 19 have low complexity/RNA. 15 is borderline but we'll leave it in
-clust.remove <- c(12, 16, 19)
-clust.ok <- setdiff(unique(scRNA$seurat_clusters), clust.remove)
-scRNA <- subset(scRNA, seurat_clusters %in% clust.ok)
-
-Idents(scRNA) <- scRNA$orig.ident
+scRNA <- removeLowExpressedGenes(scRNA, 10)
 
 # Plots to examine the quality of the remaining data
 
 VlnPlot(scRNA, features = c("nFeature_RNA", "nCount_RNA", "percent.mt", 
-                            "percent.rb", "complexity"), ncol=3, pt.size = 0.1)
+                            "percent.rb", "complexity"), ncol=3, pt.size = 0)
 
 FeatureScatter(scRNA, feature1 = "nFeature_RNA", feature2 = "nCount_RNA", shuffle=TRUE, pt.size = 0.1) +
   scale_y_log10(n.breaks=16) + scale_x_log10(n.breaks=16) + theme_bw()
+FeatureScatter(scRNA, feature1 = "complexity", feature2 = "nCount_RNA", shuffle=TRUE, pt.size = 0.1) +
+  scale_y_log10(n.breaks=16) + scale_x_continuous(n.breaks=16) + theme_bw()
 FeatureScatter(scRNA, feature1 = "nFeature_RNA", feature2 = "percent.mt", shuffle=TRUE, pt.size = 0.1) +
   scale_y_log10(n.breaks=16) + scale_x_log10(n.breaks=16) + theme_bw()
 FeatureScatter(scRNA, feature1 = "nFeature_RNA", feature2 = "percent.rb", shuffle=TRUE, pt.size = 0.1) +
@@ -97,52 +90,84 @@ median(scRNA$nCount_RNA)
 mean(scRNA$nCount_RNA)
 sd(scRNA$nCount_RNA)
 
-# Final QC filtering
-scRNA <- subset(scRNA, subset = nCount_RNA <= 3*median(scRNA$nCount_RNA) &
-                  nFeature_RNA >= 800 &   # Possible cutoff between ~800-1000
+# Get rid of the set of low-quality cells
+scRNA <- subset(scRNA, subset = nFeature_RNA >= 800 & 
                   percent.mt <= 5 &   # Clear cutoff at 4 or 5
-                  percent.rb >= 10 &  # Clear cutoff at 10
+                  percent.rb >= 8 &   # Clear cutoff at 8-10
                   percent.rb <= 55)   # Removes cells with low RNA + high rb
+
+VlnPlot(scRNA, features = "nFeature_RNA", pt.size = 0) + 
+  geom_hline(yintercept = 2*median(scRNA$nFeature_RNA))
+
+VlnPlot(scRNA, features = "nCount_RNA", pt.size = 0.1) + 
+  geom_hline(yintercept = 1000) +
+  geom_hline(yintercept = 2*median(scRNA$nCount_RNA)) +
+  geom_hline(yintercept = 3*median(scRNA$nCount_RNA))
+
+# Remove potential doublets by thresholding RNA count
+scRNA <- subset(scRNA, nCount_RNA <= 3*median(scRNA$nCount_RNA))
 
 VlnPlot(scRNA, features = c("nFeature_RNA", "nCount_RNA", "percent.mt", 
                             "percent.rb", "complexity"), ncol=3, pt.size = 0)
 
-table(scRNA[["orig.ident"]])
+table(scRNA$orig.ident)
+scRNA <- removeLowExpressedGenes(scRNA, 10)
 scRNA <- DietSeurat(scRNA, scale.data = FALSE)
 scRNA$genotype <- str_replace(scRNA$orig.ident, "-[12]", "")
+scRNA$batch <- "Batch1"
+scRNA$batch[scRNA$orig.ident == "WT-2" | scRNA$orig.ident == "5XFAD-2"] <- "Batch2"
 
-# At this point scRNA contains only cells with UMI >= 800
+# At this point scRNA contains all cells that passed QC
 saveRDS(scRNA, file = file_seurat_unnorm)
 
-# Experimenting with different methods of combining/normalizing data. 
-# Commented out because they're unused. 
-#scRNA <- readRDS(file_seurat_unnorm)
-#scRNA <- simpleNormalizeAndScale(scRNA)
-#saveRDS(scRNA, file = file.path(data_dir, "seurat_umi800_normSimple_2022-01-04.rds"))
-
-#scRNA <- readRDS(file_seurat_unnorm)
-#scRNA <- regressionNormalizeAndScale(scRNA, 
-#                                     regress = c("percent.mt", "percent.rb"))
-#saveRDS(scRNA, file = file.path(data_dir, "seurat_umi800_norm_regMtRb_2022-01-04.rds"))
-
-#scRNA <- readRDS(file_seurat_unnorm)
-#scRNA <- SCTransformNormalize(scRNA, regress = c())
-#saveRDS(scRNA, file = file.path(data_dir, "seurat_umi800_sct_2022-01-04.rds"))
-
-#scRNA <- readRDS(file_seurat_unnorm)
-#scRNA <- SCTransformNormalize(scRNA, regress = c("percent.mt", "percent.rb"))
-#saveRDS(scRNA, file = file.path(data_dir, "scRNA_Seurat_umi800_sct_regMtRb_2022-01-04.rds"))
-
-#scRNA <- readRDS(file_seurat_unnorm)
-#scRNA <- generateIntegratedData(scRNA)
-#saveRDS(scRNA, file = file.path(data_dir, "seurat_umi800_integrated_2022-01-04.rds"))
-
-# This data is used for the paper -- only includes cells with > 1 count of a 
-# CD3 gene (Cd3d, Cd3e, or Cd3g)
+# Looking for batch effect of cellular stress
 scRNA <- readRDS(file_seurat_unnorm)
-scRNA <- filterOnGenePositive(scRNA, "Cd3[edg]$", 1)
-scRNA <- generateIntegratedData(scRNA, 
-                                regress = c("percent.rb", "percent.mt", "nCount_RNA"))
+scRNA <- NormalizeData(scRNA)
+scRNA <- FindVariableFeatures(scRNA, nfeatures = 3000)
+
+cells = colnames(scRNA)[scRNA$genotype == "WT" | scRNA$genotype == "5XFAD"]
+
+scRNA.sub <- subset(scRNA, cells = cells)
+markers <- FindMarkers(scRNA.sub, ident.1 = "Batch2", ident.2 = "Batch1",
+                       group.by = "batch", min.pct = 0.05, test.use = "MAST",
+                       latent.vars = c("nCount_RNA", "genotype"))
+
+markers <- markers[order(markers$avg_log2FC, decreasing = TRUE),]
+markers <- subset(markers, p_val_adj < 0.01)
+markers$Ensembl.Id <- geneNameToEnsembl(rownames(markers))
+
+write.csv(markers, file = "DiffGenes_Batch2v1.csv")
+
+rm(scRNA.sub)
+
+# After input of diff genes into PANTHER, scoring on Reactome pathways, the top 
+# results all relate to cellular stress. 9 genes overlap with the pathway
+# "Cellular response to heat stress", so we use genes in that pathway to
+# create a "stress score"
+reac <- read.table("~/Downloads/reactome_ResponseToHeatStress.tsv", sep = "\t",
+                   skip = 4, header = TRUE)
+
+reac_stress <- reac$Gene.Name[reac$Gene.Name %in% rownames(scRNA)]
+
+assay <- GetAssayData(scRNA, slot = "data")
+assay <- assay[reac_stress,]
+assay <- rowSums(assay > 0)
+
+reac_stress <- reac_stress[assay > ncol(scRNA) * 0.01]
+
+# Only score on genes that are variable, to help discriminate between clusters
+reac_v <- reac_stress[reac_stress %in% VariableFeatures(scRNA)]
+
+scRNA <- AddModuleScore(scRNA, features = list(reac_stress, reac_v), name = "Stress")
+
+RidgePlot(scRNA, features = c("Stress1", "Stress2"), 
+          group.by = "orig.ident", same.y.lims = TRUE)
+
+# This data is used for the paper 
+#scRNA <- readRDS(file_seurat_unnorm)
+scRNA <- generateIntegratedData(scRNA, method = "LogNormalize",
+                                regress = c("nCount_RNA", "Stress2", "percent.mt", "percent.rb"))
+
 saveRDS(scRNA, file = file_seurat_norm)
 
 # At this point we are done. The rest of this script is just more data 
@@ -166,8 +191,7 @@ DimPlot(scRNA, reduction = "umap", shuffle=TRUE, label=TRUE)
 DimPlot(scRNA, group.by="orig.ident", reduction = "umap", shuffle=TRUE)
 DimPlot(scRNA, group.by="orig.ident", split.by="orig.ident", reduction = "umap", shuffle=TRUE)
 
-
-# Perform cell cycle scoring
+# Cell Cycle
 cc_genes <- getCellCycleGenes()
 scRNA <- CellCycleScoring(scRNA,
                           g2m.features = cc_genes$g2m_genes,
@@ -175,6 +199,15 @@ scRNA <- CellCycleScoring(scRNA,
 
 DimPlot(scRNA, group.by="Phase", reduction = "umap", shuffle=TRUE)
 DimPlot(scRNA, group.by="Phase", split.by="Phase", reduction = "umap", shuffle=TRUE)
+
+FeatureScatter(scRNA, feature1 = "G2M.Score", feature2 = "nCount_RNA", shuffle = TRUE, pt.size = 0.1) + 
+  scale_y_log10(n.breaks=16) + scale_x_continuous(n.breaks=16) + theme_bw()
+
+good.cells <- scRNA$nCount_RNA <= 2*median(scRNA$nCount_RNA)
+prolif.cells <- scRNA$G2M.Score > 0 & scRNA$nCount_RNA <= 3*median(scRNA$nCount_RNA)
+
+scRNA <- subset(scRNA, cells = colnames(scRNA)[good.cells | prolif.cells])
+
 
 library(pheatmap)
 
@@ -189,7 +222,7 @@ merged$seurat_clusters = as.numeric(merged$seurat_clusters)
 merged$Phase <- as.numeric(factor(merged$Phase))
 
 correlation = cor(merged)
-map = pheatmap(correlation, display_numbers = TRUE)
+map = pheatmap::pheatmap(correlation, display_numbers = TRUE)
 
 # Visualize the PCA, grouping by cell cycle phase
 DimPlot(scRNA, reduction = "pca", group.by = "Phase", shuffle = TRUE)
@@ -218,6 +251,24 @@ ElbowPlot(scRNA, ndims=75)
 
 rm(list = ls())
 
+# Test code: DoubletFinder
+library(DoubletFinder)
+splitS <- SplitObject(scRNA, split.by = "orig.ident")
+sweep.res <- lapply(splitS, FUN = paramSweep_v3, PCs = 1:30, sct = FALSE)
+sweep.stats <- lapply(sweep.res, FUN = summarizeSweep, GT = FALSE)
+bcmvn <- lapply(sweep.stats, FUN = find.pK)
+est_pk <- lapply(bcmvn, function(X) { X$pK[which.max(X$BCmetric)] })
 
+nExp_poi <- lapply(splitS, function(X) { round(0.05*ncol(X)) })
 
+splitS <- lapply(1:length(splitS), function(X) {
+  doubletFinder_v3(splitS[[X]], PCs = 1:30, pN = 0.25, pK = as.numeric(as.character(est_pk[[X]])), nExp = nExp_poi[[X]], reuse.pANN = FALSE, sct = FALSE)
+})
 
+splitS <- lapply(splitS, function(X) {
+  colnames(X@meta.data)[grep("DF.class", colnames(X@meta.data))] = "DF.Class"
+  colnames(X@meta.data)[grep("pANN", colnames(X@meta.data))] = "DF.pANN"
+  X
+})
+
+tmp <- merge(splitS[[1]], unlist(splitS[2:6]))

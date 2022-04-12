@@ -35,9 +35,9 @@ file_matched_epitopes <- file.path(dir_data, "matched_epitopes.tsv")
 
 # Un-normalized and normalized Seurat objects, no analysis included
 dir_seurat <- file.path(dir_data, "Seurat")
-file_seurat_unnorm <- file.path(dir_seurat, "seurat_umi800_unnorm_2022-02-03.rds")
-file_seurat_norm <- file.path(dir_seurat, "seurat_umi800_integrated_SCT_reg_2022-02-03.rds")
-file_seurat_norm_cd8 <- file.path(dir_seurat, "seurat_umi800_integrated_SCT_reg_CD8_2022-02-14.rds")
+file_seurat_unnorm <- file.path(dir_seurat, "seurat_unnorm_2022-04-11.rds")
+file_seurat_norm <- file.path(dir_seurat, "seurat_integrated_LogNorm_reg_2022-04-11.rds")
+file_seurat_norm_cd8 <- file.path(dir_seurat, "seurat_integrated_SCT_reg_CD8_2022-03-14.rds")
 
 # Analyzed Seurat objects
 file_seurat_analyzed_allcells <- file.path(dir_seurat, "seurat_analyzed_allcells_2022-02-03.rds")

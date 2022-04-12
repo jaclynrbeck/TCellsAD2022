@@ -62,10 +62,8 @@ makeSeurat <- function(file_dir, gene_column = 2, min_cells = 10,
   scRNA[["percent.mt"]] <- PercentageFeatureSet(scRNA, pattern = "^mt-")
   scRNA[["percent.mt"]] <- scRNA[["percent.mt"]] + PercentageFeatureSet(scRNA, pattern = "^Mrp[s|l]")
   
-  # This pattern matches genes starting with Mrpl, Mrps, Rpl, Rps, allows for a 
-  # number following, and possible a, x, or p[0-2]. This ignores kinases, etc.
-  # Example match: Rpl36a. Example non-match: Rps6ka1
-  scRNA[["percent.rb"]] <- PercentageFeatureSet(scRNA, pattern = "^[M|R]r?p[s|l][0-9]*[a|x|p]?[0-2]?$")
+  # This pattern matches genes starting with "Rpl" or "Rps"
+  scRNA[["percent.rb"]] <- PercentageFeatureSet(scRNA, pattern = "^Rp[s|l]")
   
   scRNA[["complexity"]] = scRNA[["nCount_RNA"]] / scRNA[["nFeature_RNA"]]
 
@@ -99,9 +97,15 @@ filterOnGenePositive <- function(scRNA, pattern, threshold = 1) {
   
   # Require >= threshold count
   pos.cells <- subset(names(assay.pos), assay.pos >= threshold) 
-  
-  # Now contains only gene+ cells
-  scRNA[,pos.cells]
+}
+
+# Removes genes that are expressed in < (threshold) cells
+removeLowExpressedGenes <- function(scRNA, threshold = 10) {
+  assay <- GetAssayData(scRNA, slot = "counts")
+  assay <- rowSums(assay > 0)
+  genes <- assay[assay >= threshold]
+  scRNA <- subset(scRNA, features = names(genes))
+  scRNA
 }
 
 
@@ -109,34 +113,15 @@ filterOnGenePositive <- function(scRNA, pattern, threshold = 1) {
 # CellCycleScoring function
 getCellCycleGenes <- function() {
   library(RCurl)
-  library(biomaRt)
   
   cc_file <- getURL("https://raw.githubusercontent.com/hbc/tinyatlas/master/cell_cycle/Mus_musculus.csv") 
   cell_cycle_genes <- read.csv(text = cc_file)
   
-  # Convert ENSEMBL gene ID (provided in the file above) to gene symbol to 
-  # match with Seurat rownames
-  ens <- useMart("ensembl", dataset = "mmusculus_gene_ensembl")
-  #ms.attr <- listAttributes(ens)
-  #ms.attr[grep("symbol", tolower(ms.attr$name)),]
-  
-  genes <- getBM(attributes = c("ensembl_gene_id", "mgi_symbol"), 
-                 filters = c("ensembl_gene_id"),
-                 values = cell_cycle_genes$geneID,
-                 mart = ens)
-  
-  cell_cycle_genes <- merge(cell_cycle_genes, genes, by.x = "geneID", 
-                            by.y = "ensembl_gene_id", sort = TRUE)
+  cell_cycle_genes$geneSymbol <- ensemblToGeneName(cell_cycle_genes$geneID)
   
   # Acquire the S phase genes
-  s_genes <- cell_cycle_genes %>%
-    dplyr::filter(phase == "S") %>%
-    pull("mgi_symbol")
-  
-  # Acquire the G2M phase genes        
-  g2m_genes <- cell_cycle_genes %>%
-    dplyr::filter(phase == "G2/M") %>%
-    pull("mgi_symbol")
+  s_genes <- cell_cycle_genes$geneSymbol[cell_cycle_genes$phase == "S"]
+  g2m_genes <- cell_cycle_genes$geneSymbol[cell_cycle_genes$phase == "G2/M"]
   
   cc_genes <- list("s_genes" = s_genes, "g2m_genes" = g2m_genes)
   cc_genes
@@ -221,8 +206,10 @@ generateIntegratedData <- function(scRNA, method = "SCT",
   integ_features <- SelectIntegrationFeatures(object.list = split_seurat, 
                                               nfeatures = 3000) 
   
-  split_seurat <- PrepSCTIntegration(object.list = split_seurat, 
-                                     anchor.features = integ_features)
+  if (method == "SCT") {
+    split_seurat <- PrepSCTIntegration(object.list = split_seurat, 
+                                       anchor.features = integ_features)
+  }
   
   # Find anchors
   integ_anchors <- FindIntegrationAnchors(object.list = split_seurat, 
