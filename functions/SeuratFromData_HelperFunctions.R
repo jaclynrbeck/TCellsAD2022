@@ -194,7 +194,7 @@ generateIntegratedData <- function(scRNA, method = "SCT",
                                          normalization.method = "LogNormalize")
       split_seurat[[i]] <- FindVariableFeatures(split_seurat[[i]], 
                                                 selection.method = "vst", 
-                                                nfeatures = 3000)
+                                                nfeatures = 4000)
     }
     else { # SCT
       split_seurat[[i]] <- SCTransform(split_seurat[[i]], 
@@ -204,7 +204,7 @@ generateIntegratedData <- function(scRNA, method = "SCT",
   
   # Select the most variable features to use for integration
   integ_features <- SelectIntegrationFeatures(object.list = split_seurat, 
-                                              nfeatures = 3000) 
+                                              nfeatures = 4000) 
   
   if (method == "SCT") {
     split_seurat <- PrepSCTIntegration(object.list = split_seurat, 
