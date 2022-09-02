@@ -1,0 +1,83 @@
+{
+    "5XFAD-1_frac_reads_kept": 1.0,
+    "5XFAD-1_pre_normalization_cmb_reads_per_filtered_bc": 149353.44883370955,
+    "5XFAD-1_pre_normalization_raw_reads_per_filtered_bc": 213377.16177577127,
+    "5XFAD-2_frac_reads_kept": 1.0,
+    "5XFAD-2_pre_normalization_cmb_reads_per_filtered_bc": 117573.16318704729,
+    "5XFAD-2_pre_normalization_raw_reads_per_filtered_bc": 164335.43885811674,
+    "PS-5X_frac_reads_kept": 1.0,
+    "PS-5X_pre_normalization_cmb_reads_per_filtered_bc": 44545.48077828338,
+    "PS-5X_pre_normalization_raw_reads_per_filtered_bc": 65171.082378785504,
+    "PS19_frac_reads_kept": 1.0,
+    "PS19_pre_normalization_cmb_reads_per_filtered_bc": 118699.70804409964,
+    "PS19_pre_normalization_raw_reads_per_filtered_bc": 171607.02735810535,
+    "WT-1_frac_reads_kept": 1.0,
+    "WT-1_pre_normalization_cmb_reads_per_filtered_bc": 377975.275175644,
+    "WT-1_pre_normalization_raw_reads_per_filtered_bc": 549048.8032786886,
+    "WT-2_frac_reads_kept": 1.0,
+    "WT-2_pre_normalization_cmb_reads_per_filtered_bc": 72813.8941240184,
+    "WT-2_pre_normalization_raw_reads_per_filtered_bc": 102249.3441646358,
+    "batches": [
+        "WT-1",
+        "WT-2",
+        "5XFAD-1",
+        "5XFAD-2",
+        "PS19",
+        "PS-5X"
+    ],
+    "chemistry_barcode": [
+        {
+            "kind": "gel_bead",
+            "length": 16,
+            "offset": 0,
+            "read_type": "R1",
+            "whitelist": "737K-august-2016"
+        }
+    ],
+    "chemistry_description": "Single Cell 5' R2-only",
+    "chemistry_endedness": "five_prime",
+    "chemistry_name": "SC5P-R2",
+    "chemistry_rna": {
+        "length": null,
+        "min_length": null,
+        "offset": 0,
+        "read_type": "R2"
+    },
+    "chemistry_rna2": null,
+    "chemistry_strandedness": "-",
+    "chemistry_umi": {
+        "length": 10,
+        "min_length": null,
+        "offset": 16,
+        "read_type": "R1"
+    },
+    "filtered_bcs_transcriptome_union": 18374,
+    "frac_reads_kept": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+    ],
+    "lowest_frac_reads_kept": 1.0,
+    "mm10_filtered_bcs": 18374,
+    "mm10_filtered_bcs_conf_mapped_barcoded_reads_cum_frac": 1.0,
+    "mm10_filtered_bcs_median_counts": 6039.0,
+    "mm10_filtered_bcs_median_unique_genes_detected": 2114.0,
+    "mm10_flt_mapped_reads": 1839202211,
+    "mm10_raw_mapped_reads": 1839202211,
+    "multi_filtered_bcs_conf_mapped_barcoded_reads_cum_frac": 1.0,
+    "num_cells_by_library": [
+        854,
+        3693,
+        2658,
+        2347,
+        2449,
+        6373
+    ],
+    "post_normalization_multi_transcriptome_total_raw_reads_per_filtered_bc": 143406.29122673342,
+    "post_normalization_total_reads": 2634947195,
+    "pre_normalization_multi_transcriptome_total_raw_reads_per_filtered_bc": 143406.29122673342,
+    "pre_normalization_total_reads": 2634947195
+}
