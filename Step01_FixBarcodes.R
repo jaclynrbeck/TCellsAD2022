@@ -12,7 +12,7 @@
 # well by adding "--1" to duplicated gene names and re-writing the file. 
 
 # Author: Jaclyn Beck
-# Final script for paper as of March 06, 2022
+# Final script for paper as of June 27, 2022
 
 library(stringr)
 
@@ -28,7 +28,9 @@ file.copy(from = file_barcodes,
 file.copy(from = file_features, 
           to = file.path(dir_filtered_counts, "features.original.tsv.gz"))
 
-# Read in barcodes and annotation
+
+##### Fix barcodes file #####
+
 barcodes <- read.table(file = gzfile(file_barcodes))
 barcodes <- barcodes$V1
 
@@ -47,17 +49,54 @@ write.table(barcodes,
             col.names=FALSE, quote=FALSE)
 
 
-## Rearrange clonotype data
+##### Rearrange clonotype data #####
 
 anno <- read.csv(file_clonotypes_annotated)
 clono <- read.csv(file_clonotypes_raw)
 
 anno$clonotype <- paste(anno$chain, anno$cdr3, sep=": ")
 
+# CellRanger doesn't match clonotypes across samples. Merge clonotypes with
+# identical CDR3s (using nucleotides)
+#dupes <- clono$cdr3s_nt[duplicated(clono$cdr3s_nt)]
+#dupes <- unique(dupes)
+
+#remove <- c()
+
+#for (D in dupes) {
+#  matches.ind <- which(clono$cdr3s_nt == D)
+#  matches <- clono[matches.ind,]
+#  best.ind <- matches.ind[which.max(matches$frequency)]
+  
+#  replace <- setdiff(matches.ind, best.ind)
+  
+  # Update the clonotype info in both arrays
+#  clono$frequency[best.ind] <- sum(matches$frequency)
+#  clono$proportion[best.ind] <- sum(matches$proportion)
+  
+#  old.clono <- which(anno$raw_clonotype_id %in% clono$clonotype_id[replace])
+#  anno$raw_clonotype_id[old.clono] <- clono$clonotype_id[best.ind]
+  
+#  remove <- c(remove, replace)
+#}
+
+#clono <- clono[-remove,]
+
+# Save the list of clonotypes
+#write.csv(clono, file = file_clonotypes_raw_edited, row.names = FALSE)
+
+# Make barcode compatible with the new barcodes above and save
+anno$Sample <- str_replace(anno$barcode, "-[0-9]", 
+                           paste0("_", anno$origin))
+anno$Genotype <- str_replace(anno$origin, "-[12]", "")
+write.csv(anno, file = file_clonotypes_annotated_edited, row.names = FALSE)
+
 # Put the data in an easier format. Combine the TRA and TRB entries for each 
 # cell, and discard columns that aren't needed.
 tcr.tmp <- data.frame(Barcode = anno$barcode,
-                      Genotype = anno$origin,
+                      Genotype = anno$Genotype,
+                      Origin = anno$origin,
+                      Sample = anno$Sample,
                       TRA.V = " ",
                       TRA.J = " ",
                       TRA.C = " ",
@@ -93,9 +132,6 @@ for (R in 1:nrow(tcr.tmp)) {
   }
 }
 
-# Make the barcode compatible with the new barcodes above
-tcr.tmp$Sample <- str_replace(tcr.tmp$Barcode, "-[0-9]", 
-                              paste0("_", tcr.tmp$Genotype))
 tcr.tmp <- unique(tcr.tmp)
 
 # Get iNKT and MAIT info
@@ -108,7 +144,9 @@ for (R in 1:nrow(clono)) {
 
 write.csv(tcr.tmp, file = file_clonotypes_processed, row.names = FALSE)
 
-# Fix the features file
+
+##### Fix the features file #####
+
 features <- read.table(file = gzfile(file_features))
 features$V2 <- make.unique(features$V2, sep = "--")
 

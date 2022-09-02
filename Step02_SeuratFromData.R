@@ -161,7 +161,16 @@ all.genes <- rownames(scRNA)
 genes.exclude <- list("Ribosomal" = grep("Rp[s|l]", all.genes, value=TRUE),
                       "Mitochondrial" = c(grep("^mt", all.genes, value=TRUE),
                                           grep("Mrp[s|l]", all.genes, value = TRUE)),
-                      "Stress" = all.genes[geneNameToEnsembl(all.genes) %in% reac$Gene.ID])
+                      "Stress" = all.genes[geneNameToEnsembl(all.genes) %in% reac$Gene.ID],
+                      # Other stress-related and X-related genes that are sig. 
+                      # different between batches. 
+                      "Batch" = c("Dnajb1", "Hsph1", "Hspa1a", "Hspa8", 
+                                  "Hsp90ab1", "Hspd1", "Dnaja1", "Chordc1", 
+                                  "Dnajc15", "Dynll1", "Fkbp4", "Hsp90aa1", 
+                                  "Vim", "Hist1h1c", "Gm11808", "H3f3b", 
+                                  "Hist1h1d", "Hist1h4d", "Stip1", "H1f0", 
+                                  "Hmgb2", "Fos", "Hspe1", "Uba52", "Hist1h2ap",
+                                  "Cul3", "Aven", "Ywhaq", "Xist"))
 
 saveRDS(genes.exclude, file_excluded_genes)
 

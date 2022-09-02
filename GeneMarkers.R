@@ -127,3 +127,37 @@ markers.extended = list(
              "Tnfrsf18", "Ikzf2", "Irf4", "Batf")
   
 )
+
+
+markers.immune <- list(
+  "Cytokines" = c("Csf2", "Ifng", "Il1a", "Il2", "Il4", "Il7", "Il10", "Il13", 
+                  "Il15", "Il16", "Il17a", "Il17f", "Il18", "Il21", "Il22", 
+                  "Lif", "Csf1", "Tnfsf11", "Tnf", "Tnfsf4", "Tnfsf10", "Tnfsf8",
+                  "Tnfsf13b", "Tnfsf12", "Tnfsf11", "Tnfsf9", "Tnfsf14", "Lta",
+                  "Ltb", "Fasl", "Cd70", "Cd40lg"),
+  "Chemokines" = c("Cxcl3", "Cxcl2", "Cxcl10", "Ccl3", "Ccl6", "Ccl9", "Ccl1",
+                   "Ccl4", "Ccl5", "Ccl25", "Ccl27a", "Cxcl16", "Xcl1"),
+  "GrowthFactors" = c("Btc", "Vegfa", "Tgfb1", "Tgfb3", "Tgfa"),
+  "Receptors" = c("Il1r2", "Il1r1", "Il1rl2", "Il1rl1", "Il18r1", "Il18rap", 
+                  "Il2ra", "Il15ra", "Il6ra", "Il11ra1", "Il12rb2", 
+                  "Il23r", "Il17re", "Il17rc", "Il17ra", "Il4ra", "Il21r", 
+                  "Il12rb1", "Il27ra", "Il10ra", "Il20rb", "Il20ra", "Il9r",
+                  "Il3ra", "Il17rd", "Il17rb", "Il7r", "Il2rb", "Il1rap", 
+                  "Il10rb", "Il2rg", "Il18bp",
+                  "Cxcr2", "Cxcr4", "Cxcr5", "Cxcr6", "Cxcr3", "Cx3cr1",
+                  "Ifngr1", "Ifngr2", "Ifnar1", "Ifnar2",
+                  "Tgfbr1", "Tgfbr3", "Tgfbr2", "Tgfbrap1",
+                  "Ltbr", "Tnfrsf11a", "Tnfrsf1b", "Tnfrsf8", "Tnfrsf9",
+                  "Tnfrsf25", "Tnfrsf14", "Tnfrsf4", "Tnfrsf18", "Tnfrsf1a",
+                  "Tnfrsf26", "Tnfrsf22", "Tnfrsf23", "Tnfrsf13b", "Tnfrsf10b",
+                  "Tnfrsf10b", "Tnfrsf13c", "Tnfrsf12a", "Tnfrsf21", "Fas",
+                  "Pglyrp1", "Cd40"),
+  "P2r" = c("P2ry14", "P2ry12", "P2ry1", "P2rx7", "P2rx4", "P2ry10", "P2ry10b"),
+  "TxFactors" = c("Tbx21", "Gata3", "Stat4", "Stat6", "Stat3", "Rorc", "Rora", 
+                  "Foxp3", "Spi1", "Irf4", "Ahr", "Bcl6", "Rela", "Nfkb1", 
+                  "Stat1", "Stat2", "Stat5b", "Stat5a", "Irf6", "Irf5", "Irf3",
+                  "Irf7", "Irf2", "Irf8", "Irf1", "Irf9")
+)
+
+
+

@@ -1,5 +1,6 @@
 library(readxl)
 library(writexl)
+library(biomaRt)
 
 # Helper functions that are used more than once in the code
 
@@ -11,7 +12,7 @@ matchTcrs <- function( scRNA, tcr.anno, tcr.epi = NULL ) {
     return(tcr.match)
   }
   
-  merged <- merge(tcr.match, tcr.epi, by = c("Clonotype", "ClonotypeId"), 
+  merged <- merge(tcr.match, tcr.epi, by = c("ClonotypeId"), 
                   all.x = TRUE, all.y = FALSE)
 
   rownames(merged) <- merged$Sample
@@ -33,12 +34,12 @@ printClusterDistributions <- function(scRNA) {
   print(round((clust_per_group / rowSums(clust_per_group))*100, 2))
 }
 
-getHighestExpressedGenes <- function( scRNA ) {
+getHighestExpressedGenes <- function( scRNA, ngenes = 10 ) {
   highest.expressed = data.frame()
   for (i in levels(scRNA)) {
     sub <- subset(scRNA, idents=i)
-    data <- GetAssayData(object = sub, slot = "data")
-    top.genes <- sort(rowMeans(data), decreasing=TRUE)[1:10]
+    data <- GetAssayData(object = sub, slot = "scale.data")
+    top.genes <- sort(rowMeans(data), decreasing=TRUE)[1:ngenes]
     if (length(highest.expressed) == 0) {
       highest.expressed <- data.frame("0"=names(top.genes))
     }
@@ -96,7 +97,7 @@ writeClusterClonotypes <- function( scRNA, tcr.anno, clono.file, out.file ) {
     cells <- colnames(sub)
     
     clust_tcr <- filter(tcr.anno, Sample %in% cells)
-    cl_counts <- as.data.frame(table(clust_tcr$ClonotypeId, clust_tcr$Genotype), 
+    cl_counts <- as.data.frame(table(clust_tcr$ClonotypeId, clust_tcr$Origin), 
                                stringsAsFactors = FALSE)
     cl_counts <- subset(cl_counts, Freq > 0)
     cl_df <- data.frame(ClonotypeId = cl_counts$Var1, 
@@ -123,8 +124,11 @@ writeGenotypeDifferentialGenes <- function( scRNA, genotypes, FDR, out.file ) {
   sheets <- c()
   
   for (G1 in genotypes) {
-    markers <- FindMarkers(scRNA, ident.1 = G1, group.by = "genotype")
-    sig.markers <- filter(markers, p_val_adj <= FDR & pct.1 >= 0.1)
+    markers <- FindMarkers(scRNA, ident.1 = G1, group.by = "genotype",
+                           test.use = "MAST", min.pct = 0.05,
+                           latent.vars = c("nCount_RNA", "StressScoreVariable"))
+
+    sig.markers <- filter(markers, p_val_adj <= FDR & pct.1 >= 0.05)
     sig.markers$Ensembl.ID <- geneNameToEnsembl(rownames(sig.markers))
     sig.markers$Gene <- str_replace(rownames(sig.markers), "--.*", "")
     
@@ -136,8 +140,11 @@ writeGenotypeDifferentialGenes <- function( scRNA, genotypes, FDR, out.file ) {
     sheets[[paste(G1, "vs All")]] <- sub
     
     for (G2 in genotypes[genotypes != G1]) {
-      markers <- FindMarkers(scRNA, ident.1 = G2, ident.2 = G1, group.by = "genotype")
-      sig.markers <- filter(markers, p_val_adj <= FDR & pct.1 >= 0.1)
+      markers <- FindMarkers(scRNA, ident.1 = G2, ident.2 = G1, min.pct = 0.05,
+                             group.by = "genotype", test.use = "MAST",
+                             latent.vars = c("nCount_RNA", "StressScoreVariable"))
+      
+      sig.markers <- filter(markers, p_val_adj <= FDR & pct.1 >= 0.05)
       sig.markers$Ensembl.ID <- geneNameToEnsembl(rownames(sig.markers))
       sig.markers$Gene <- str_replace(rownames(sig.markers), "--.*", "")
       
@@ -160,7 +167,9 @@ writeClusterVGenotypeDiffGenes <- function( scRNA, genotypes, FDR, out.file ) {
   for (C in clust) {
     for (G in genotypes) {
       markers <- FindMarkers(scRNA, ident.1 = G, subset.ident = C, 
-                             group.by = "genotype")
+                             group.by = "genotype", 
+                             test.use = "MAST",
+                             latent.vars = c("nCount_RNA", "StressScoreVariable"))
       
       sig.markers <- filter(markers, p_val_adj <= FDR & pct.1 >= 0.1)
       sig.markers$Ensembl.ID <- geneNameToEnsembl(rownames(sig.markers))
@@ -192,7 +201,7 @@ writeGenotypeClonotypes <- function( scRNA, tcr.anno, genotypes, clono.file, out
     cells <- names(sub)
     
     clust_tcr <- filter(tcr.anno, Sample %in% cells)
-    cl_counts <- as.data.frame(table(clust_tcr$ClonotypeId, clust_tcr$Genotype), 
+    cl_counts <- as.data.frame(table(clust_tcr$ClonotypeId, clust_tcr$Origin), 
                                stringsAsFactors = FALSE)
     cl_counts <- subset(cl_counts, Freq > 0)
     cl_df <- data.frame(ClonotypeId = cl_counts$Var1, 
@@ -490,6 +499,7 @@ getGammaDeltas2 <- function( scRNA ) {
 }
 
 getGammaDeltas <- function( scRNA, tcr.anno ) {
+  DefaultAssay(scRNA) <- "RNA"
   all.genes <- rownames(scRNA)
   tras <- grep("^Tra[v|j]", all.genes, value=TRUE)
   tratrd <- grep("-dv", tras, value=TRUE) # Could be alpha or delta
@@ -499,13 +509,12 @@ getGammaDeltas <- function( scRNA, tcr.anno ) {
                        "TRA.C" = grep("^Trac", all.genes, value=TRUE),
                        "TRB" = grep("^Trbv", all.genes, value=TRUE),
                        "TRB.C" = grep("^Trbc", all.genes, value=TRUE),
-                       #"TRA.TRD" = tratrd, 
+                       "TRA.TRD" = tratrd, 
                        "TRD" = grep("^Trdv", all.genes, value=TRUE),
                        "TRD.C" = grep("^Trdc", all.genes, value=TRUE),
                        "TRG" = c(grep("^Trgv", all.genes, value=TRUE), 
                                  grep("^Tcrg-V", all.genes, value=TRUE)),
                        "TRG.C" = grep("^Tcrg-C", all.genes, value=TRUE))
-                       #"CD" = c("Cd4", "Cd8a", "Cd8b1"))
   
   receptors.df <- stack(receptors.df) %>% as.data.frame()
   colnames(receptors.df) <- c("Gene", "Category")
@@ -515,11 +524,44 @@ getGammaDeltas <- function( scRNA, tcr.anno ) {
   assay <- GetAssayData(scRNA, slot = "counts", assay = "RNA")
   assay <- assay[receptors.df$Gene,]
   
-  neg.cells <- colnames(scRNA)[which(!(colnames(scRNA) %in% tcr.anno$Sample))]
-  tcr.ab <- subset(receptors.df, Category %in% c("TRA", "TRA.C", "TRB", "TRB.C"))
+  # Cells with no recognized clonotype
+  tcr.match <- matchTcrs(scRNA, tcr.anno)
+  neg.cells <- colnames(scRNA)[which(!(colnames(scRNA) %in% tcr.match$Sample))]
+  
+  # Cells with a recognized TRB only (no TRA) could also be gamma deltas
+  tmp <- which(nchar(tcr.match$TRA.V) < 4 & nchar(tcr.match$TRA.J) < 4 & 
+                 nchar(tcr.match$TRA.C) < 4)
+  neg.cells <- c(neg.cells, tcr.match$Sample[tmp])
+  
+  # Cells with a TRA with "-DV" in the name could also be gamma deltas
+  tmp <- grep("-DV", tcr.match$TRA.V)
+  tmp.tcr <- tcr.match[tmp,]
+  neg.cells <- c(neg.cells, tmp.tcr$Sample)
+  
+  # Exclude MAITs and iNKTs
+  mait <- subset(tcr.match, MAIT == TRUE | iNKT == TRUE)$Sample
+  assay.mait <- assay[c("Trbv1", "Trbv13-1", "Trav11", "Trav1", "Traj18",
+                        "Trbv13-2", "Trbv13-3", "Trbv19", "Trbv29"),]
+  assay.mait <- colSums(assay.mait)
+  mait <- unique(c(mait, names(assay.mait)[assay.mait >= 1]))
+  neg.cells <- setdiff(neg.cells, mait)
+  
+  #tcr.ab <- subset(receptors.df, Category %in% c("TRA", "TRA.C", "TRB", "TRB.C"))
   tcr.gd <- subset(receptors.df, Category %in% c("TRD", "TRD.C", "TRG", "TRG.C"))
   assay.gd <- assay[tcr.gd$Gene, neg.cells]
-  gd <- colnames(assay.gd)[which(colSums(assay.gd) > 1)]
+  
+  assay.gd <- assay[tcr.gd$Gene,]
+  #assay.gd <- assay[grep("Tcrg-V|Tcrg-C1|Tcrg-C4|Trdv|Trdc", all.genes, value=TRUE),]
+  gd <- colnames(assay.gd)[which(colSums(assay.gd) > 0)]
+  gd <- setdiff(gd, mait)
+  
+  # Cells that contain at least one count of gamma delta receptor genes
+  #gd <- colnames(assay.gd)[which(colSums(assay.gd) > 0)]
+}
+
+expressesGDPair <- function( assay, v.gene, c.gene ) {
+  pair <- assay[c(v.gene, c.gene),] > 0
+  return(colSums(pair) >= 2)
 }
 
 
@@ -533,18 +575,46 @@ getSinglePositiveCells <- function( scRNA, tcr.anno ) {
   assay.cd8 <- assay[c("Cd8a", "Cd8b1"),]
   cd8.pos <- subset(colnames(assay.cd8), assay.cd8["Cd8a",] >= 1 | assay.cd8["Cd8b1",] >= 1)
   
-  #assay.gd <- assay[grep("Trdc|Trdv4|Tcrg-V|Tcrg-C1|Sox13|Blk", all.genes, 
-  #                       value=TRUE),]
-  #assay.gd <- colSums(assay.gd)
-  gd.pos <- getGammaDeltas(scRNA, tcr.anno) #subset(names(assay.gd), assay.gd >= 1)
+  # Get all cells that express any gamma-delta marker except Trgv2 and Tcrg-C2,
+  # which seem to be anomalously expressed in many cells
+  assay.gd <- assay[grep("Trdc|Trdv|Tcrg-V|Tcrg-C1|Tcrg-C3|Tcrg-C4|Sox13|Blk", all.genes, value=TRUE),]
+  assay.gd <- colSums(assay.gd)
+  gd.pos <- subset(names(assay.gd), assay.gd >= 1)
+  
+  # Get cells most likely to be true gamma-deltas: cells must express a Trd 
+  # gene OR the correct pairing of Trg genes: (Tcrg-V1 + Tcrg-C4, 
+  # Tcrg-V3 + Tcrg-C3, or Tcrg-V4/V5/V6/V7 + Tcrg-C1)
+  assay.gd <- assay[grep("Trdc|Trdv|Sox13|Blk", all.genes, value=TRUE),]
+  assay.gd <- colSums(assay.gd)
+  gd.delta <- subset(names(assay.gd), assay.gd >= 1)
+  
+  #matches <- expressesGDPair(assay, "Tcrg-V1", "Tcrg-C4") |
+  #  expressesGDPair(assay, "Tcrg-V3", "Tcrg-C3") |
+  #  expressesGDPair(assay, "Tcrg-V4", "Tcrg-C1") |
+  #  expressesGDPair(assay, "Tcrg-V5", "Tcrg-C1") |
+  #  expressesGDPair(assay, "Tcrg-V6", "Tcrg-C1") |
+  #  expressesGDPair(assay, "Tcrg-V7", "Tcrg-C1")
+  
+  #gd.true <- unique(c(gd.delta, colnames(scRNA)[matches]))
+  
+  # Remove MAITs and iNKTs
+  #mait <- subset(tcr.anno, Sample %in% colnames(scRNA) & 
+  #                 (MAIT == TRUE | iNKT == TRUE))$Sample
+  #assay.mait <- assay[c("Trbv1", "Trbv13-1", "Trav11", "Trav1", "Traj18",
+  #                      "Trbv13-2", "Trbv13-3", "Trbv19", "Trbv29"),]
+  #assay.mait <- colSums(assay.mait)
+  #mait <- unique(c(mait, names(assay.mait)[assay.mait >= 1]))
+  #gd.pos <- setdiff(gd.pos, mait)
+  
+  #gd.pos <- getGammaDeltas(scRNA, tcr.anno) 
   
   #assay.ab <- assay[grep("Trac|Traj|Trav|^Trb", all.genes, value=TRUE),]
   #assay.ab <- colSums(assay.ab)
   #ab.pos <- subset(names(assay.ab), assay.ab >= 1)
   
   cd4cd8 <- intersect(cd4.pos, cd8.pos)
-  cd4gd <- c() #intersect(cd4.pos, gd.pos)
-  cd8gd <- c() #intersect(cd8.pos, gd.pos)
+  cd4gd <- intersect(cd4.pos, gd.pos) # use gd.pos and not gd.true here
+  cd8gd <- intersect(cd8.pos, gd.pos) # use gd.pos and not gd.true here
   #abgd <- intersect(ab.pos, gd.pos)
   
   double.pos <- unique(c(cd4cd8, cd4gd, cd8gd))
@@ -552,17 +622,21 @@ getSinglePositiveCells <- function( scRNA, tcr.anno ) {
   # Remove double positives
   cd8.pos <- cd8.pos[!(cd8.pos %in% double.pos)]
   cd4.pos <- cd4.pos[!(cd4.pos %in% double.pos)]
+  gd.delta <- gd.delta[!(gd.delta %in% double.pos)]
 
-  neg <- setdiff(colnames(scRNA), c(cd8.pos, cd4.pos, gd.pos, double.pos))
+  neg <- setdiff(colnames(scRNA), c(cd8.pos, cd4.pos, gd.delta, double.pos))
   
-  list("CD8" = cd8.pos, "CD4" = cd4.pos, "GD" = gd.pos, "Double" = double.pos, 
+  list("CD8" = cd8.pos, "CD4" = cd4.pos, "GD" = gd.delta, "Double" = double.pos, 
        "Negative" = neg)
 }
 
 
 getHumanMouseHomologs <- function(human.genes) {
-  ens.human <- useMart("ensembl", dataset = "hsapiens_gene_ensembl")
-  ens.mouse <- useMart("ensembl", dataset = "mmusculus_gene_ensembl")
+  # Temporarily using archive because new ensembl update crashes biomart
+  ens.human <- useMart("ensembl", dataset = "hsapiens_gene_ensembl", 
+                       host = "https://dec2021.archive.ensembl.org/")
+  ens.mouse <- useMart("ensembl", dataset = "mmusculus_gene_ensembl", 
+                       host = "https://dec2021.archive.ensembl.org/")
   
   homologs <- getLDS(attributes = c('hgnc_symbol'),
                      filters = 'hgnc_symbol', 
