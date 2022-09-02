@@ -10,8 +10,7 @@ dir_filtered_counts <- file.path(dir_cellranger, "count", "filtered_feature_bc_m
 dir_vdj <- file.path(dir_cellranger, "vdj_t")
 
 # Processed and raw clonotypes files
-file_clonotypes_raw <- file.path(dir_vdj, "clonotypes.csv")
-file_clonotypes_raw_edited <- file.path(dir_vdj, "clonotypes_edited.csv")
+file_clonotypes_summary <- file.path(dir_vdj, "clonotypes.csv")
 file_clonotypes_annotated <- file.path(dir_vdj, "filtered_contig_annotations.csv")
 file_clonotypes_annotated_edited <- file.path(dir_vdj, "filtered_contig_annotations_edited.csv")
 file_clonotypes_processed <- file.path(dir_cellranger, "clonotypes_processed.csv")
@@ -44,27 +43,28 @@ dir_vdjtools_output <- file.path(dir_vdjtools, "output")
 
 # Un-normalized and normalized Seurat objects, no analysis included
 dir_seurat <- file.path(dir_data, "Seurat")
-file_seurat_unnorm <- file.path(dir_seurat, "seurat_unnorm_2022-04-12.rds")
-file_seurat_norm <- file.path(dir_seurat, "seurat_integrated_SCT_2022-04-12.rds")
-file_seurat_norm_cd8 <- file.path(dir_seurat, "seurat_integrated_SCT_CD8_2022-05-10.rds")
-file_seurat_norm_cd4 <- file.path(dir_seurat, "seurat_integrated_SCT_CD4_2022-05-26.rds")
-file_seurat_norm_gd <- file.path(dir_seurat, "seurat_SCT_GD_2022-06-28.rds")
+file_seurat_unnorm <- file.path(dir_seurat, "seurat_unnorm_2022-09-02.rds")
+file_seurat_norm <- file.path(dir_seurat, "seurat_integrated_2022-09-02.rds")
+file_seurat_norm_cd8 <- file.path(dir_seurat, "seurat_integrated_CD8_2022-09-02.rds")
+file_seurat_norm_cd4 <- file.path(dir_seurat, "seurat_SCT_CD4_2022-09-02.rds")
+file_seurat_norm_gd <- file.path(dir_seurat, "seurat_SCT_GD_2022-09-02.rds")
 
 # Analyzed Seurat objects
-file_seurat_analyzed_allcells <- file.path(dir_seurat, "seurat_analyzed_allcells_2022-04-14.rds")
-file_seurat_analyzed_cd8 <- file.path(dir_seurat, "seurat_analyzed_CD8_2022-05-10.rds")
-file_seurat_analyzed_cd4 <- file.path(dir_seurat, "seurat_analyzed_CD4_2022-05-26.rds")
-file_seurat_analyzed_gd <- file.path(dir_seurat, "seurat_analyzed_GD_2022-06-28.rds")
+file_seurat_analyzed_allcells <- file.path(dir_seurat, "seurat_analyzed_allcells_2022-09-02.rds")
+file_seurat_analyzed_cd8 <- file.path(dir_seurat, "seurat_analyzed_CD8_2022-09-02.rds")
+file_seurat_analyzed_cd4 <- file.path(dir_seurat, "seurat_analyzed_CD4_2022-09-02.rds")
+file_seurat_analyzed_gd <- file.path(dir_seurat, "seurat_analyzed_GD_2022-09-02.rds")
 
 # All cells combined files: Cluster / Genotype markers
 dir_allcells <- file.path(dir_data, "AllCells")
 dir_allcells_go <- file.path(dir_allcells, "GO_Analysis")
-file_markers_combined_all <- file.path(dir_allcells, "all_markers_combined_2022-04-14.rds")
-file_markers_combined_clusters <- file.path(dir_allcells, 'DiffGenes_byCluster_combined_2022-04-14.xlsx')
-file_markers_combined_genotypes <- file.path(dir_allcells, 'DiffGenes_byGenotype_combined_2022-04-14.xlsx')
-file_markers_combined_clusters_vs_genotype <- file.path(dir_allcells, 'DiffGenes_byGenotypePerCluster_combined_2022-04-14.xlsx')
-file_clonotypes_combined_clusters <- file.path(dir_allcells, 'Clonotypes_byCluster_combined_2022-04-14.xlsx')
-file_clonotypes_combined_genotypes <- file.path(dir_allcells, 'Clonotypes_byGenotype_combined_2022-04-14.xlsx')
+dir_allcells_gsea <- file.path(dir_allcells, "GSEA")
+file_markers_combined_all <- file.path(dir_allcells, "all_markers_combined_2022-09-02.rds")
+file_markers_combined_clusters <- file.path(dir_allcells, 'DiffGenes_byCluster_combined_2022-09-02.xlsx')
+file_markers_combined_genotypes <- file.path(dir_allcells, 'DiffGenes_byGenotype_combined_2022-09-02.xlsx')
+file_markers_combined_clusters_vs_genotype <- file.path(dir_allcells, 'DiffGenes_byGenotypePerCluster_combined_2022-09-02.xlsx')
+file_clonotypes_combined_clusters <- file.path(dir_allcells, 'Clonotypes_byCluster_combined_2022-09-02.xlsx')
+file_clonotypes_combined_genotypes <- file.path(dir_allcells, 'Clonotypes_byGenotype_combined_2022-09-02.xlsx')
 
 
 # CD8 files: Cluster / Genotype markers

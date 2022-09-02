@@ -12,7 +12,7 @@
 # well by adding "--1" to duplicated gene names and re-writing the file. 
 
 # Author: Jaclyn Beck
-# Final script for paper as of June 27, 2022
+# Final script for paper as of Sep 02, 2022
 
 library(stringr)
 
@@ -52,51 +52,22 @@ write.table(barcodes,
 ##### Rearrange clonotype data #####
 
 anno <- read.csv(file_clonotypes_annotated)
-clono <- read.csv(file_clonotypes_raw)
+clono <- read.csv(file_clonotypes_summary)
 
 anno$clonotype <- paste(anno$chain, anno$cdr3, sep=": ")
 
-# CellRanger doesn't match clonotypes across samples. Merge clonotypes with
-# identical CDR3s (using nucleotides)
-#dupes <- clono$cdr3s_nt[duplicated(clono$cdr3s_nt)]
-#dupes <- unique(dupes)
-
-#remove <- c()
-
-#for (D in dupes) {
-#  matches.ind <- which(clono$cdr3s_nt == D)
-#  matches <- clono[matches.ind,]
-#  best.ind <- matches.ind[which.max(matches$frequency)]
-  
-#  replace <- setdiff(matches.ind, best.ind)
-  
-  # Update the clonotype info in both arrays
-#  clono$frequency[best.ind] <- sum(matches$frequency)
-#  clono$proportion[best.ind] <- sum(matches$proportion)
-  
-#  old.clono <- which(anno$raw_clonotype_id %in% clono$clonotype_id[replace])
-#  anno$raw_clonotype_id[old.clono] <- clono$clonotype_id[best.ind]
-  
-#  remove <- c(remove, replace)
-#}
-
-#clono <- clono[-remove,]
-
-# Save the list of clonotypes
-#write.csv(clono, file = file_clonotypes_raw_edited, row.names = FALSE)
-
 # Make barcode compatible with the new barcodes above and save
-anno$Sample <- str_replace(anno$barcode, "-[0-9]", 
+anno$Seurat.Barcode <- str_replace(anno$barcode, "-[0-9]", 
                            paste0("_", anno$origin))
 anno$Genotype <- str_replace(anno$origin, "-[12]", "")
 write.csv(anno, file = file_clonotypes_annotated_edited, row.names = FALSE)
 
 # Put the data in an easier format. Combine the TRA and TRB entries for each 
 # cell, and discard columns that aren't needed.
-tcr.tmp <- data.frame(Barcode = anno$barcode,
+tcr.tmp <- data.frame(Orig.Barcode = anno$barcode,
                       Genotype = anno$Genotype,
-                      Origin = anno$origin,
-                      Sample = anno$Sample,
+                      Sample = anno$origin,
+                      Seurat.Barcode = anno$Seurat.Barcode,
                       TRA.V = " ",
                       TRA.J = " ",
                       TRA.C = " ",
@@ -104,15 +75,15 @@ tcr.tmp <- data.frame(Barcode = anno$barcode,
                       TRB.D = " ",
                       TRB.J = " ",
                       TRB.C = " ",
-                      Clonotype = " ", 
+                      Clonotype.Sequence = " ", 
                       ClonotypeId = anno$raw_clonotype_id,
                       iNKT = FALSE,
                       MAIT = FALSE)
 tcr.tmp <- unique(tcr.tmp)
 
 for (R in 1:nrow(tcr.tmp)) {
-  tcrs <- subset(anno, barcode == tcr.tmp$Barcode[R])
-  tcr.tmp[R, "Clonotype"] <- str_flatten(sort(unique(tcrs$clonotype)), collapse=", ")
+  tcrs <- subset(anno, barcode == tcr.tmp$Orig.Barcode[R])
+  tcr.tmp[R, "Clonotype.Sequence"] <- str_flatten(sort(unique(tcrs$clonotype)), collapse=", ")
   
   # There might be more than one of each of these
   tra <- subset(tcrs, chain == "TRA")
@@ -160,5 +131,6 @@ saveRDS(features, file_gene_symbols)
 
 # Clear data
 rm(list=ls())
+gc()
 
 # Done. 
