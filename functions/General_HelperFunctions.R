@@ -12,7 +12,7 @@
 #                   will find "Cd3d", "Cd3e" and "Cd3g".
 # In cases where multiple genes are specified, the cell must express at least
 # <threshold> of one of those genes to pass. 
-filterOnGenePositive <- function(scRNA, pattern, threshold = 1) {
+filterOnGenePositive <- function( scRNA, pattern, threshold = 1 ) {
   all.genes <- rownames(scRNA)
   
   assay <- GetAssayData(scRNA, "counts")
@@ -28,7 +28,7 @@ filterOnGenePositive <- function(scRNA, pattern, threshold = 1) {
 
 
 # Removes genes that are expressed in < (threshold) cells
-removeLowExpressedGenes <- function(scRNA, threshold = 10) {
+removeLowExpressedGenes <- function( scRNA, threshold = 10 ) {
   assay <- GetAssayData(scRNA, slot = "counts")
   assay <- rowSums(assay > 0)
   genes <- assay[assay >= threshold]
@@ -40,7 +40,7 @@ removeLowExpressedGenes <- function(scRNA, threshold = 10) {
 # Converts gene names to Ensembl IDs. This function is necessary because
 # gene names may have "--1" appended to them if they map to multiple 
 # Ensembl IDs, and the "gene symbols" file accounts for this. 
-geneNameToEnsembl <- function(genes) {
+geneNameToEnsembl <- function( genes ) {
   features <- readRDS(file_gene_symbols)
   rownames(features) <- features$Gene.Symbol
   features[genes, "Ensembl.Id"]
@@ -49,8 +49,28 @@ geneNameToEnsembl <- function(genes) {
 # Converts Ensembl IDs to gene names. This function is necessary because
 # gene names may have "--1" appended to them if they map to multiple 
 # Ensembl IDs, and the "gene symbols" file accounts for this. 
-ensemblToGeneName <- function(genes) {
+ensemblToGeneName <- function( genes ) {
   features <- readRDS(file_gene_symbols)
   rownames(features) <- features$Ensembl.Id
   features[genes, "Gene.Symbol"]
 }
+
+
+# Downsamples each genotype to have the same number of cells. Returns a new
+# Seurat object with the downsampled data.
+downsample <- function( scRNA ) {
+  counts <- table(scRNA$genotype)
+  downsamp <- min(counts)
+  cells <- c()
+  
+  set.seed(10)
+  for (N in names(counts)) {
+    subs <- filter(scRNA@meta.data, genotype == N)
+    cells <- c(cells, sample(rownames(subs), downsamp))
+  }
+  
+  scRNA.down <- subset(scRNA, cells = cells)
+  scRNA.down
+}
+
+

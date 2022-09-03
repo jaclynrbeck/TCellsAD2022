@@ -1,12 +1,66 @@
+# Helper functions that are used in the analysis steps only (Steps 3-6)
+
+# Author: Jaclyn Beck
+# Final script used for paper as of Sep 02, 2022
+
 library(readxl)
 library(writexl)
 library(biomaRt)
 
-# Helper functions that are used more than once in the code
+# Uses Seurat's integration pipeline to integrate individual samples into one
+# Seurat object. This is the method used for the paper, as we have two samples 
+# that were run on a different day than the rest.
+# Method can be "SCT" or "LogNormalize". Note: The LogNormalize code may not
+# work, it has been awhile since I tried that method. SCT works.
+generateIntegratedData <- function(scRNA, method = "SCT", 
+                                   regress = c("percent.rb", "percent.mt", "nCount_RNA")) {
+  split_seurat <- SplitObject(scRNA, split.by = "orig.ident")
+  
+  for (i in 1:length(split_seurat)) {
+    if (method == "LogNormalize") {
+      split_seurat[[i]] <- NormalizeData(split_seurat[[i]], 
+                                         normalization.method = "LogNormalize")
+      split_seurat[[i]] <- FindVariableFeatures(split_seurat[[i]], 
+                                                selection.method = "vst", 
+                                                nfeatures = 4000)
+    }
+    else { # SCT
+      split_seurat[[i]] <- SCTransform(split_seurat[[i]], 
+                                       vars.to.regress = regress)
+    }
+  }
+  
+  # Select the most variable features to use for integration
+  integ_features <- SelectIntegrationFeatures(object.list = split_seurat, 
+                                              nfeatures = 4000) 
+  
+  if (method == "SCT") {
+    split_seurat <- PrepSCTIntegration(object.list = split_seurat, 
+                                       anchor.features = integ_features)
+  }
+  
+  # Find anchors
+  integ_anchors <- FindIntegrationAnchors(object.list = split_seurat, 
+                                          normalization.method = method,
+                                          anchor.features = integ_features)
+  
+  # Integrate across conditions
+  seurat_integrated <- IntegrateData(anchorset = integ_anchors, 
+                                     normalization.method = method)
+  
+  # Final scaling if using LogNormalize -- has to be linear, not negbinom
+  if (method == "LogNormalize") {
+    seurat_integrated <- ScaleData(seurat_integrated, 
+                                   features = VariableFeatures(seurat_integrated),
+                                   vars.to.regress = regress)
+  }
+  
+  seurat_integrated
+}
+
 
 matchTcrs <- function( scRNA, tcr.anno, tcr.epi = NULL ) {
-  matches <- intersect(colnames(scRNA), tcr.anno$Sample)
-  tcr.match <- subset(tcr.anno, Sample %in% matches)
+  tcr.match <- subset(tcr.anno, Seurat.Barcode %in% colnames(scRNA))
 
   if (is.null(tcr.epi)) {
     return(tcr.match)
@@ -20,52 +74,13 @@ matchTcrs <- function( scRNA, tcr.anno, tcr.epi = NULL ) {
 }
 
 
-printClusterDistributions <- function(scRNA) {
-  summ_ident_table = table(scRNA$orig.ident, Idents(scRNA))
-  
-  # Distribution across clusters of each group separately (sum of columns = 100)
-  clust_per_group = round(t(summ_ident_table / rowSums(summ_ident_table))*100, 2)
-  print("Dist. of each cluster within each genotype (columns sum to 100)")
-  print(clust_per_group)
-  
-  # Distribution of groups in each cluster (sum of rows = 100)
-  print("")
-  print("Dist. of each genotype within each cluster (rows sum to 100)")
-  print(round((clust_per_group / rowSums(clust_per_group))*100, 2))
-}
+##### File I/O #####
 
-getHighestExpressedGenes <- function( scRNA, ngenes = 10 ) {
-  highest.expressed = data.frame()
-  for (i in levels(scRNA)) {
-    sub <- subset(scRNA, idents=i)
-    data <- GetAssayData(object = sub, slot = "scale.data")
-    top.genes <- sort(rowMeans(data), decreasing=TRUE)[1:ngenes]
-    if (length(highest.expressed) == 0) {
-      highest.expressed <- data.frame("0"=names(top.genes))
-    }
-    else {
-      highest.expressed <- cbind(highest.expressed, names(top.genes))
-    }
-  }
-  
-  colnames(highest.expressed) <- paste("Cluster", levels(scRNA), sep=" ")
-  highest.expressed
-}
-
-geneNameToEnsembl <- function(genes) {
-  features <- readRDS(file_gene_symbols)
-  rownames(features) <- features$Gene.Symbol
-  features[genes, "Ensembl.Id"]
-}
-
-
-ensemblToGeneName <- function(genes) {
-  features <- readRDS(file_gene_symbols)
-  rownames(features) <- features$Ensembl.Id
-  features[genes, "Gene.Symbol"]
-}
-
-
+# Writes output of FindAllMarkers to an Excel file. Automatically replaces
+# gene names that have been altered with "--1" at the end, with the actual
+# gene name. Adds the Ensembl ID of the gene as a column.
+# sig.markers should be a data frame as output by FindAllMarkers.
+# out.file should be a string with the full file path of the output file.
 writeDifferentialGenes <- function( sig.markers, out.file ) {
   sheets <- c()
   
@@ -78,12 +93,24 @@ writeDifferentialGenes <- function( sig.markers, out.file ) {
     
     # cut out "p_val", "cluster", and old "gene" columns
     sub <- sub[, c("Ensembl.ID", "Gene", "avg_log2FC", "pct.1", "pct.2", "p_val_adj")]
+    
+    # Some clusters have a "/" in their names (i.e. Naive/CM), which is an
+    # illegal character for sheet names. Replace it with "+".
     sheets[[str_replace(i, "/", "+")]] <- sub
   }
   
   write_xlsx(sheets, path=out.file)
 }
 
+
+# Writes information about which clonotypes are in each cluster, and adds
+# what percentage of cells in the cluster have each clonotype vs percent of
+# cells outside the cluster. 
+# scRNA: Seurat object
+# tcr.anno: data frame read from file_clonotypes_processed
+# clono.file: string with full file path to the CellRanger "clonotypes.csv" 
+#             file. Use file_clonotypes_summary. 
+# out.file: string with full file path to output file.
 writeClusterClonotypes <- function( scRNA, tcr.anno, clono.file, out.file ) {
   sheets <- c()
   
@@ -96,17 +123,17 @@ writeClusterClonotypes <- function( scRNA, tcr.anno, clono.file, out.file ) {
     sub <- subset(scRNA, idents=i)
     cells <- colnames(sub)
     
-    clust_tcr <- filter(tcr.anno, Sample %in% cells)
-    cl_counts <- as.data.frame(table(clust_tcr$ClonotypeId, clust_tcr$Origin), 
+    clust_tcr <- filter(tcr.anno, Seurat.Barcode %in% cells)
+    cl_counts <- as.data.frame(table(clust_tcr$ClonotypeId, clust_tcr$Sample), 
                                stringsAsFactors = FALSE)
     cl_counts <- subset(cl_counts, Freq > 0)
     cl_df <- data.frame(ClonotypeId = cl_counts$Var1, 
-                        Clonotype = clono[cl_counts$Var1, "cdr3s_aa"],
+                        Clonotype.Sequence = clono[cl_counts$Var1, "cdr3s_aa"],
                         Count = cl_counts$Freq,
                         Sample = cl_counts$Var2,
                         iNKT = (clono[cl_counts$Var1, "inkt_evidence"] != ""),
                         MAIT = (clono[cl_counts$Var1, "mait_evidence"] != ""))
-    cl_df$Clonotype <- str_replace_all(cl_df$Clonotype, ";", "; ")
+    cl_df$Clonotype.Sequence <- str_replace_all(cl_df$Clonotype.Sequence, ";", "; ")
     
     cl_df$Percent.Cells.In.Clust <- cl_df$Count / sum(cl_df$Count) * 100
     
@@ -120,10 +147,21 @@ writeClusterClonotypes <- function( scRNA, tcr.anno, clono.file, out.file ) {
   write_xlsx(sheets, path=out.file)
 }
 
+
+# Calculates differential genes between genotypes, running comparisons on 
+# <genotype> vs all other genotypes, and <genotype> vs each individual genotype.
+# Automatically replaces gene names that have been altered with "--1" at the 
+# end, with the actual gene name. Adds the Ensembl ID of the gene as a column.
+# scRNA: Seurat object
+# genotypes: list or vector of genotype names, corresponding to what is in
+#            scRNA$genotype. i.e. c("WT", "5XFAD", "PS19", "PS-5X")
+# FDR: threshold for significance, i.e. 0.01
+# out.file: string with full file path to output file
 writeGenotypeDifferentialGenes <- function( scRNA, genotypes, FDR, out.file ) {
   sheets <- c()
   
   for (G1 in genotypes) {
+    # G1 vs All
     markers <- FindMarkers(scRNA, ident.1 = G1, group.by = "genotype",
                            test.use = "MAST", min.pct = 0.05,
                            latent.vars = c("nCount_RNA", "StressScoreVariable"))
@@ -139,6 +177,7 @@ writeGenotypeDifferentialGenes <- function( scRNA, genotypes, FDR, out.file ) {
 
     sheets[[paste(G1, "vs All")]] <- sub
     
+    # G1 vs G2 for each G2 in <genotypes>
     for (G2 in genotypes[genotypes != G1]) {
       markers <- FindMarkers(scRNA, ident.1 = G2, ident.2 = G1, min.pct = 0.05,
                              group.by = "genotype", test.use = "MAST",
@@ -160,6 +199,15 @@ writeGenotypeDifferentialGenes <- function( scRNA, genotypes, FDR, out.file ) {
   }
 }
 
+
+# Calculates differential genes between genotypes, on a per-cluster basis. 
+# Only runs <genotype> vs All comparison. Automatically accounts for gene names
+# with "--1" at the end. 
+# scRNA: Seurat object
+# genotypes: list or vector of genotype names, corresponding to what is in
+#            scRNA$genotype. i.e. c("WT", "5XFAD", "PS19", "PS-5X")
+# FDR: threshold for significance, i.e. 0.01
+# out.file: string with full file path to output file
 writeClusterVGenotypeDiffGenes <- function( scRNA, genotypes, FDR, out.file ) {
   sheets <- c()
   clust <- unique(Idents(scRNA))
@@ -188,6 +236,15 @@ writeClusterVGenotypeDiffGenes <- function( scRNA, genotypes, FDR, out.file ) {
 }
 
 
+# Writes information about which clonotypes are in each genotype, and adds
+# what percentage of cells in the genotype have each clonotype.
+# scRNA: Seurat object
+# tcr.anno: data frame read from file_clonotypes_processed
+# genotypes: list or vector of genotype names, corresponding to what is in
+#            scRNA$genotype. i.e. c("WT", "5XFAD", "PS19", "PS-5X")
+# clono.file: string with full file path to the CellRanger "clonotypes.csv" 
+#             file. Use file_clonotypes_summary. 
+# out.file: string with full file path to output file.
 writeGenotypeClonotypes <- function( scRNA, tcr.anno, genotypes, clono.file, out.file ) {
   sheets <- c()
   
@@ -200,22 +257,19 @@ writeGenotypeClonotypes <- function( scRNA, tcr.anno, genotypes, clono.file, out
     sub <- scRNA$genotype[scRNA$genotype == i]
     cells <- names(sub)
     
-    clust_tcr <- filter(tcr.anno, Sample %in% cells)
-    cl_counts <- as.data.frame(table(clust_tcr$ClonotypeId, clust_tcr$Origin), 
+    clust_tcr <- filter(tcr.anno, Seurat.Barcode %in% cells)
+    cl_counts <- as.data.frame(table(clust_tcr$ClonotypeId, clust_tcr$Sample), 
                                stringsAsFactors = FALSE)
     cl_counts <- subset(cl_counts, Freq > 0)
     cl_df <- data.frame(ClonotypeId = cl_counts$Var1, 
-                        Clonotype = clono[cl_counts$Var1, "cdr3s_aa"],
+                        Clonotype.Sequence = clono[cl_counts$Var1, "cdr3s_aa"],
                         Count = cl_counts$Freq,
                         Sample = cl_counts$Var2,
                         iNKT = (clono[cl_counts$Var1, "inkt_evidence"] != ""),
                         MAIT = (clono[cl_counts$Var1, "mait_evidence"] != ""))
-    cl_df$Clonotype <- str_replace_all(cl_df$Clonotype, ";", "; ")
+    cl_df$Clonotype.Sequence <- str_replace_all(cl_df$Clonotype.Sequence, ";", "; ")
     
     cl_df$Percent.Cells.In.Geno <- cl_df$Count / sum(cl_df$Count) * 100
-    
-    total_counts <- all_counts[cl_df$ClonotypeId]
-    
     cl_df <- cl_df[order(cl_df$Percent.Cells.In.Geno, decreasing=TRUE),]
     
     sheets[[str_replace(i, "/", "+")]] <- cl_df
@@ -225,6 +279,12 @@ writeGenotypeClonotypes <- function( scRNA, tcr.anno, genotypes, clono.file, out
 }
 
 
+# Reads significant genes from specific tabs of the genotype diff genes file.
+# filename: full file path to the genotype diff genes file, generated from
+#           writeGenotypeDifferentialGenes().
+# pattern: regular expression for grep search on tab names. Example: "All"
+#          will find all sheets with "<genotype> vs All". "vs WT" would find
+#          all sheets with "<genotype> vs WT". 
 readSigGenesGenotype <- function ( filename, pattern = "All" ) {
   diff.genes <- lapply(excel_sheets(filename), read_excel, 
                        path = filename)
@@ -243,6 +303,13 @@ readSigGenesGenotype <- function ( filename, pattern = "All" ) {
   sig.genes.df
 }
 
+
+##### Things that print to the console #####
+
+# Prints the top 10 markers for each cluster
+# sig.markers: data frame output by FindAllMarkers
+# pos.only: TRUE = display only positively-changed genes. 
+#           FALSE = display both positively and negatively changed genes
 printTop10Markers <- function ( sig.markers, pos.only = TRUE ) {
   if (pos.only) {
     sorted <- sig.markers %>% group_by(cluster) %>% top_n(n = 10, wt = avg_log2FC)
@@ -267,157 +334,48 @@ printTop10Markers <- function ( sig.markers, pos.only = TRUE ) {
   tmp
 }
 
-getCellTypeMarkers <- function(all.genes) {
-  markers.pos <- list("CD8" = c("Cd8[a|b]"),
-                     
-                     "CD4" = c("^Cd4$"),
-                     
-                     "CD3" = c("^Cd3[d|e|g]$"),
-                     
-                     "Naive/CM" = c("Sell", "Ccr7", "Ptprc$", "Il7r", "Tcf7$", 
-                                    "Cd27$", "Cd28", "Klf2", "S1pr1"),
-                     #, "Lef1$", "Satb1", "Gpr183", "Ltb$", "S100a10"),
-                     
-                     "CM" = c("Sell", "Ccr7", "Cd44", "Cd27$", "Il7r", "Il2rb",
-                              "Eomes", "Bcl6", "Tcf1$", "Stat3", "^Id3$", "^Fas$"),
-                     
-                     "Effector/EM" = c("Klrg1", "Cx3cr1", "S1pr5", "Tnf$", 
-                                       "Ifng$", "Gzmb", "Prf1", "Cd44", "^Fas$"),
-                     #"Stat4", "Prdm1", "Eomes
-                     #"Id2", "Tbx21", "Bcl6"),
-                     
-                     "RM" = c("Itgae", "Itga1$", "Cxcr6", "Cd69", "Cxcr3", "Il7r",
-                              "Zfp683", "Prdm1$"),
-                     
-                     "Exhausted" = c("Pdcd1$", "Havcr2", "Lag3", "Tigit", "Cd160", 
-                                     "Ctla4"), #"Cxcl13", "Hspb1$", "Cxcr6", "Irf4",
-                     #"Layn", "Gimap6", "Hsph1"),
-                     
-                     "Interferon" = c("Bst2", "Irf1", "Irf2$", "Irf7", "Stat1", 
-                                      "Stat2", "^Mx1"), # Mx1 not present in data set
-                     
-                     "Proliferating" = c("Mki67"), #, "Kif"), #"Cdk[0-9]*$", 
-                     #"^Cdc[0-9]*$"),
-                     
-                     "Activation" = c("Klrg1", "Il2ra", "Cd69", "Tnfrsf4", 
-                                      "Tnfrsf9", "Cd44", "Cd40lg", "^Fas$", 
-                                      "Ccl5", "Klrk1", "Cx3cr1", "Icos$"),
-                     
-                     "Cytotoxic" = c("Prf1", "Gzm", "Lamp1", "Ifng$", "Tnf$", 
-                                     "Tnfsf10", "Nkg7"),
-                     
-                     "Anergic/Tolerant" = c("Lag3", "Pdcd1$", "Nfatc[12]$", 
-                                            "Nfkb1", "Ikzf1", "Egr[12]"),
-                     
-                     "GammaDelta" = c("Trg", "Trdv", "Trdc", "Il17a", "Rorc", 
-                                      "Cxcr5", "Il2rb", "Tcrg", "Sox13", "Blk",
-                                      "Cd163l1", "5830411N06Rik"),
-                     
-                     #"AlphaBeta" = c("Trac", "Traj", "Trav", "^Trb"),
-                     
-                     "MAIT" = c("Trav1$", "Traj33", "Trbv19", "Trbv13", #"Trav19", "Trbv[68]"
-                                "Klrb1c", "Zbtb16", "Rorc",
-                                "Tbx21", "Ccr5", "Ccr6"), #"Slc4a10", 
-                     
-                     "NKT" = c("Trav11$", "Traj18", "Trbv13-2", "Trbv1$", 
-                               "Trbv29", "Klrb1c", # Trav14-[123]", "Trbv[278]$"
-                               "Rorc", "Zbtb16", "Gata3", "Tbx21", "Ifng$", 
-                               "^Il4$", "Nkg7"),
-                     #"Klrc2", "Zfp683", "^Xcl1$"),
-                     
-                     "Treg" = c("Il2ra", "Foxp3", "Ctla4", "Il7r", "^Il2$", "Tigit", "Nrp1"), 
-                     #"Ccr10"), # Tregs can express Gata3, Rorc, and Tbx21 too
-                     
-                     "Th1" = c("Tbx21", "Ifng$", "Cxcr6", "Cxcr3", "Ccr5", "Il12rb2"),
-                     
-                     "Th2" = c("Gata3", "^Il4$", "Ccr4", "^Il5", "Il13"), # Il5 not present in data set
-                     
-                     "Th9" = c("Spi1", "Il9$", "Ccr3", "Ccr6"), # Il9 not present in data set
-                     
-                     "Th17" = c("Rorc", "Il17[a|f]", "Il21$", "Il22", "Il23r", "Ccr5", "Il10$", "Ccr6", "Ccr4", "Klrb1c"),
-                     
-                     "Th22" = c("Ahr", "Il22", "Ccr6", "Ccr10", "Ccr4"),
-                     
-                     "Tfh" = c("Bcl6$", "Cxcr5", "Tcf7$", "Il21$", "Icos$", "Cd40lg"),
-                     
-                     "Tr1" = c("Il10$"), # Subset of Tregs
-                     
-                     "Tfr" = c("Cxcr5", "Ctla4") # Subset of Tregs
-  )
 
-  for (item in names(markers.pos)) {
-    markers.pos[item] <- list(c(unname(unlist(sapply(markers.pos[item][[1]], function(x,y) grep(x, y, ignore.case=TRUE, value=TRUE), all.genes)))))
-  }
+# Prints the percentage of each genotype in each cluster, and the percentage
+# of each cluster in each genotype. 
+printClusterDistributions <- function(scRNA) {
+  summ_ident_table = table(scRNA$orig.ident, Idents(scRNA))
   
-  markers.pos
+  # Distribution across clusters of each group separately (sum of columns = 100)
+  clust_per_group = round(t(summ_ident_table / rowSums(summ_ident_table))*100, 2)
+  print("Dist. of each cluster within each genotype (columns sum to 100)")
+  print(clust_per_group)
+  
+  # Distribution of groups in each cluster (sum of rows = 100)
+  print("")
+  print("Dist. of each genotype within each cluster (rows sum to 100)")
+  print(round((clust_per_group / rowSums(clust_per_group))*100, 2))
 }
 
-convertMarkerListToDf <- function(markers) {
-  markers <- stack(markers)
-  colnames(markers) <- c("Gene", "Type")
-  markers
-}
 
-# Fig 2 of Magen paper
-getInterestingMarkers <- function() {
-  markers <- list("Tissue Residence" = c("S1pr1", "Klf2", "Cd69", "Cxcr6"),
-                  "Chemokine" = c("Cxcr3", "Cxcr5", "Cxcr4", "Ccr7", "Ccr2", 
-                                  "Ccr5", "Ccl3", "Ccl4", "Ccl5", "Cxcl10", 
-                                  "Ccrl2", "Ccl1", "Ccr8"),
-                  "Cytokine" = c("^Il4$", "Il9r", "Il21$", "^Il2$", "Il7r", 
-                                 "Il27ra", "Il6st", "Il1rl1", "Il2ra", "Il10$", 
-                                 "Ifng$", "Il12rb2", "Il10ra", "Il18rap", 
-                                 "Il2rb", "Il2rg", "Il18r1"),
-                  "Costimulatory" = c("Tnfsf11", "Tnfsf8", "^Icos$", "Tnfrsf4",
-                                      "Tnfrsf9", "Tnfrsf18"),
-                  "Tx Factors" = c("^Id3$", "Lef1$", "Tcf7$", "Klf4", "Bcl6", 
-                                   "Nr4a3", "Nr4a2", "Bhlhe40", "Gata3", 
-                                   "Pdcd11", "Prdm1$", "Foxp3", "Ikzf2", 
-                                   "^Maf$", "Tbx21", "Klf3", "Nr4a1", "Rora", 
-                                   "^Sub1", "Stat4", "Irf9", "Irf7", "Stat1", 
-                                   "Klf6", "Stat2", "Runx3", "^Id2$", "Runx2$", 
-                                   "Irf8", "Stat3")
-  )
-  
-  for (item in names(markers)) {
-    markers[item] <- list(c(unname(unlist(sapply(markers[item][[1]], function(x,y) grep(x, y, ignore.case=TRUE, value=TRUE), all.genes)))))
-  }
-  
-  markers
-}
-
-printCellTypeAssignments <- function(sig.markers.pos, sig.markers.neg) {
-  for (clust in unique(sig.markers$cluster)) {
-    genes.pos <- filter(sig.filtered.pos, cluster == clust)$gene
-    genes.neg <- filter(sig.filtered.neg, cluster == clust)$gene
-    
-    print(paste("Cluster", clust, "POSITIVE:"))
-    print(genes.pos)
-    pos <- unstack(filter(markers.pos, Gene %in% genes.pos), form = Type ~ Gene)
-    if (class(pos) == "list") {
-      pos.df <- data.frame(Gene = names(pos), Types = sapply(pos, function(x) str_flatten(x, collapse=", ")))
-      print(pos.df)
+# Gets the 10 highest expressed genes (by scaled count) in each cluster.
+# Uses the "integrated" assay. 
+getHighestExpressedGenes <- function( scRNA, ngenes = 10 ) {
+  DefaultAssay(scRNA) <- "integrated"
+  highest.expressed = data.frame()
+  for (i in levels(scRNA)) {
+    sub <- subset(scRNA, idents=i)
+    data <- GetAssayData(object = sub, slot = "scale.data")
+    top.genes <- sort(rowMeans(data), decreasing=TRUE)[1:ngenes]
+    if (length(highest.expressed) == 0) {
+      highest.expressed <- data.frame("0"=names(top.genes))
     }
     else {
-      print(pos)
+      highest.expressed <- cbind(highest.expressed, names(top.genes))
     }
-    
-    print("")
-    
-    print(paste("Cluster", clust, "NEGATIVE:"))
-    print(genes.neg)
-    neg <- unstack(filter(markers.pos, Gene %in% genes.neg), form = Type ~ Gene)
-    if (class(neg) == "list") {
-      neg.df <- data.frame(Gene = names(neg), Types = sapply(neg, function(x) str_flatten(x, collapse=", ")))
-      print(neg.df)
-    }
-    else {
-      print(neg)
-    }
-    
-    print("")
   }
+  
+  colnames(highest.expressed) <- paste("Cluster", levels(scRNA), sep=" ")
+  DefaultAssay(scRNA) <- "RNA"
+  highest.expressed
 }
+
+
+##### Not refactored yet #####
 
 getGammaDeltas2 <- function( scRNA ) {
   DefaultAssay(scRNA) <- "RNA"
@@ -631,6 +589,8 @@ getSinglePositiveCells <- function( scRNA, tcr.anno ) {
 }
 
 
+# Queries BioMart to get mouse homologs for human genes
+# human.genes: vector of gene names
 getHumanMouseHomologs <- function(human.genes) {
   # Temporarily using archive because new ensembl update crashes biomart
   ens.human <- useMart("ensembl", dataset = "hsapiens_gene_ensembl", 
@@ -696,26 +656,12 @@ plotGeneExpressionViolin <- function(scRNA, gene.list, zero.cutoff = TRUE,
 }
 
 
-readSignatureGenes <- function(sig.gene.file) {
-  signature.genes <- read.table(sig.gene.file, header=FALSE, sep="\t")
-  colnames(signature.genes) <- c("Cluster", "H.gene")
-  ms.genes <- getHumanMouseHomologs(signature.genes$H.gene)
-  
-  clusts <- unique(signature.genes$Cluster)
-  ms.sig.genes <- list()
-  
-  for (id in clusts) {
-    hu.genes <- subset(signature.genes, Cluster == id)
-    for (gene in hu.genes$H.gene) {
-      ms <- subset(ms.genes, HGNC.symbol == gene)$MGI.symbol
-      ms.sig.genes[[id]] <- append(ms.sig.genes[[id]], ms)
-    }
-  }
-  
-  ms.sig.genes
-}
+##### GO analysis functions #####
 
-
+# Runs GProfiler to get statisticaly significant GO terms.
+# markers: data frame of significant markers as output by FindMarkers
+# sources: list of sources compatible with the "sources" argument of gost.
+#          See "?gost" for possible values. 
 runGOAnalysis <- function( markers, sources = c("GO", "REAC") ) {
   m.up <- subset(markers, avg_log2FC > 0)
   m.down <- subset(markers, avg_log2FC < 0)
@@ -760,6 +706,12 @@ runGOAnalysis <- function( markers, sources = c("GO", "REAC") ) {
 }
 
 
+# Converts gost output to a Gem file for use with Cytoscape
+# go.res.list: a list with data frames output by gost. Items in list should
+#              be named "Up" and "Down"
+# outfile: string with the full file path to the output gem file
+# use.ensembl: TRUE = use Ensembl IDs in the gem file. (recommended)
+#              FALSE = use gene names in the gem file.
 goResultsToGem <- function( go.res.list, outfile, use.ensembl = TRUE ) {
   go.res.up <- go.res.list[["Up"]]
   go.res.down <- go.res.list[["Down"]]
@@ -791,8 +743,5 @@ goResultsToGem <- function( go.res.list, outfile, use.ensembl = TRUE ) {
     write.table(gem, file = outfile, sep = "\t", quote = F, row.names = F)
   }
 }
-
-
-
 
 

@@ -1,9 +1,17 @@
+# Integrates all samples using the Seurat Integration pipeline, then 
+# clusters cells and generates the following data:
+#   Differential genes between clusters
+#   Differential genes between genotypes
+#   List of clonotypes per cluster
+#   List of clonotypes per genotype
+#   List of AD risk genes significantly changed between clusters
+#   Significant GO terms based on genotype DGE (gprofiler, not used in paper)
 # This script was written to be run line-by-line because of exploratory plots
 # to determine parameters. The values as entered in the script are those used
 # for the paper.
 
 # Author: Jaclyn Beck
-# Final script used for paper as of April 14, 2022
+# Final script used for paper as of Sep 02, 2022
 
 library(Seurat)
 library(dplyr)
@@ -14,25 +22,30 @@ library(fgsea)
 library(msigdbr)
 library(gprofiler2)
 source(file.path("functions", "Analysis_HelperFunctions.R"))
-source(file.path("functions", "Analysis_PlottingFunctions.R"))
-source(file.path("functions", "SeuratFromData_HelperFunctions.R"))
+source(file.path("functions", "General_HelperFunctions.R"))
 source("Filenames.R")
-source("GeneMarkers.R")
 
-scRNA <- readRDS(file_seurat_norm)
+
+##### Scale and integrate w/ regression #####
+
+scRNA <- readRDS(file_seurat_unnorm)
+scRNA <- generateIntegratedData(scRNA, method = "SCT",
+                                regress = c("nCount_RNA", "StressScoreVariable"))
+
+saveRDS(scRNA, file = file_seurat_norm) # Save intermediate step
+
 DefaultAssay(scRNA)
 
-tcr.anno <- read.csv(file_clonotypes_processed)
-table(tcr.anno$Genotype)
+# Get rid of SCT assay to save memory / space
+scRNA <- DietSeurat(scRNA, assays = c("RNA", "integrated"), scale.data = TRUE)
+gc()
 
-tcr.match <- matchTcrs(scRNA, tcr.anno)
-table(tcr.match$Genotype)
+
+##### Run PCA and cluster #####
 
 scRNA <- RunPCA(scRNA, npcs = 100)
 
 # Examining how many PCs we really need
-
-plotPCACurves(scRNA)
 ElbowPlot(scRNA, ndims = 100)
 
 # For paper: 40 dimensions is sufficient
@@ -52,21 +65,27 @@ top20
 # Print cluster distribution information
 printClusterDistributions(scRNA)
 
+
+##### Annotate clusters manually #####
+
 clusters <- list("0" = "CD8 Cytotoxic",
                  "1" = "Naive",
                  "2" = "CD4 Helper",
-                 "3" = "CD8 CM + \u03b3\u03b4-1",
+                 "3" = "CD8 CM + \u03b3\u03b4-1", # unicode for gamma-delta symbols
                  "4" = "\u03b3\u03b4-17", 
                  "5" = "CD8 Activated",
                  "6" = "Proliferating")
 scRNA <- RenameIdents(scRNA, clusters)
 scRNA$clusters <- Idents(scRNA)
 
+DimPlot(scRNA, reduction = "umap", shuffle = TRUE, label = TRUE) + NoLegend()
+
+# Save integrated/annotated object
 saveRDS(scRNA, file_seurat_analyzed_allcells)
+
 
 ##### Find cluster markers #####
 
-#scRNA <- readRDS(file_seurat_analyzed_allcells)
 DefaultAssay(scRNA) <- "RNA"
 scRNA <- NormalizeData(scRNA)
 
@@ -76,11 +95,17 @@ all.markers <- FindAllMarkers(scRNA, test.use = "MAST",
 
 saveRDS(all.markers, file = file_markers_combined_all)
 
-#all.markers <- readRDS(file_markers_combined_all)
 
-# Most expressed genes in each cluster
+# Print most expressed genes in each cluster
 highest.expressed <- getHighestExpressedGenes(scRNA)
 highest.expressed
+
+# Read in clonotype data
+tcr.anno <- read.csv(file_clonotypes_processed)
+table(tcr.anno$Genotype)
+
+tcr.match <- subset(tcr.anno, Seurat.Barcode %in% colnames(scRNA))
+table(tcr.match$Genotype)
 
 # Get all diff genes in each cluster
 FDR = 0.01
@@ -89,42 +114,54 @@ table(sig.markers$cluster)
 
 writeDifferentialGenes(sig.markers, file_markers_combined_clusters)
 
+top10 <- printTop10Markers(sig.markers, pos.only = TRUE)
+
+# Which clonotypes are in each cluster
+writeClusterClonotypes(scRNA, tcr.anno, file_clonotypes_summary,
+                       file_clonotypes_combined_clusters)
+
+# Diff genes and clonotypes by genotype
 genotypes <- unique(scRNA$genotype)
 writeGenotypeDifferentialGenes(scRNA, genotypes, FDR, file_markers_combined_genotypes)
-writeGenotypeClonotypes(scRNA, tcr.anno, genotypes, file_clonotypes_raw,
+writeGenotypeClonotypes(scRNA, tcr.anno, genotypes, file_clonotypes_summary,
                         file_clonotypes_combined_genotypes)
 
 writeClusterVGenotypeDiffGenes(scRNA, genotypes, FDR, file_markers_combined_clusters_vs_genotype)
 
-# Which clonotypes are in each cluster
-writeClusterClonotypes(scRNA, tcr.anno, file_clonotypes_raw,
-                       file_clonotypes_combined_clusters)
 
-##### Some visualization #####
+##### AD risk genes - by cluster #####
 
-top10 <- printTop10Markers(sig.markers, pos.only = TRUE)
+ad.genes <- read.csv(file.path(dir_data_external, "20220214 Tanzi AD Gene List.csv"))
 
-all.genes <- rownames(scRNA)
+homologs <- getHumanMouseHomologs(unique(ad.genes$GENE))
+ms.genes <- unique(homologs$MGI.symbol)
+ms.genes <- intersect(ms.genes, rownames(scRNA))
+ms.genes <- ms.genes[order(ms.genes)]
 
-FeaturePlot(scRNA, features = c("Cd8a", "Cd8b1", "Cd4", "Trdv4"), min.cutoff = 0)
-FeaturePlot(scRNA, features = c("Cd8a", "Cd4"), blend = TRUE, 
-            cols = c("lightgrey", "red", "blue"), blend.threshold = 0)
-FeaturePlot(scRNA, features = c("nFeature_RNA"))
+write_xlsx(homologs, path = file.path(dir_data, "AD_Gene_Homologs.xlsx"))
 
-VlnPlot(scRNA, features = c("Cd8a", "Cd8b1", "Cd4", "Cd3e", "Cd3d", "Cd3g"), 
-        ncol=2, pt.size = 0)
+Idents(scRNA) <- scRNA$clusters
 
-# Identify cell types as we did with flow cytometry
+diff.genes <- lapply(excel_sheets(file_markers_combined_clusters), read_excel, 
+                     path = file_markers_combined_clusters)
+
+names(diff.genes) <- excel_sheets(file_markers_combined_clusters)
+
+sig.genes <- lapply(diff.genes, function(D) {
+  match <- intersect(D$Gene, ms.genes)
+  filter(D, Gene %in% match)
+})
+
+write_xlsx(sig.genes, path = file_ad_risk_combined)
+
+
+##### Everything beyond this point was not used in the paper #####
+
+
+##### Identify naive/CM/EM/Eff cells like in flow cytometry. Not used for paper #####
 
 DefaultAssay(scRNA) <- "RNA"
 scRNA <- NormalizeData(scRNA)
-#scRNA <- AddModuleScore(scRNA, markers.core, name = "CellType")
-
-#inds <- grep("CellType", colnames(scRNA@meta.data))
-#colnames(scRNA@meta.data)[inds] <- paste0("CellType", names(markers.core))
-
-#FeaturePlot(scRNA, features = colnames(scRNA@meta.data)[inds], order = TRUE, 
-#            ncol = 6, cols = c("purple", "yellow"))
 
 scRNA <- UCell::AddModuleScore_UCell(scRNA, features = list("Naive" = c("Sell", "Ccr7", "Il7r", "Cd44-", "Klrg1-", "Itgal-", "Cd69-", "Cx3cr1-", "Il2rb-"),
                                                             "CM" = c("Sell", "Ccr7", "Il7r", "Cd44", "Klrg1-", "Itgal", "Cd69-", "Cx3cr1-", "Il2rb"),
@@ -153,34 +190,8 @@ DimPlot(scRNA, split.by = "Assignment")
 table(scRNA$Assignment)
 table(scRNA$Assignment) / ncol(scRNA) * 100
 
-# Cluster identification -- This code is old and may not work anymore
-markers.pos <- getCellTypeMarkers(rownames(scRNA))
-markers.pos <- convertMarkerListToDf(markers.pos)
 
-sig.filtered.pos = filter(sig.markers, (gene %in% unique(markers.pos$Gene) & avg_log2FC > 0))
-sig.filtered.neg = filter(sig.markers, (gene %in% unique(markers.pos$Gene) & avg_log2FC < 0))
-
-printCellTypeAssignments(sig.markers.pos, sig.markers.neg)
-
-DimPlot(scRNA, reduction = "umap", shuffle = TRUE, label = TRUE, repel = TRUE) + NoLegend()
-DimPlot(scRNA, reduction = "umap", shuffle = TRUE, label = FALSE, repel = TRUE) 
-DimPlot(scRNA, reduction = "umap", group.by="orig.ident", shuffle = TRUE)
-DimPlot(scRNA, reduction = "umap", group.by="orig.ident", split.by = "orig.ident") + NoLegend()
-
-single.pos <- getSinglePositiveCells(scRNA)
-
-types <- data.frame(Cell = single.pos[["CD8"]], Type = "CD8")
-types <- rbind(types, data.frame(Cell = single.pos[["CD4"]], Type = "CD4"))
-types <- rbind(types, data.frame(Cell = single.pos[["GD"]], Type = "GD"))
-types <- rbind(types, data.frame(Cell = single.pos[["Double"]], Type = "Double Pos"))
-rownames(types) <- types$Cell
-id <- types[colnames(scRNA), 2]
-id[is.na(id)] <- "Unknown"
-
-Idents(scRNA) <- id
-
-
-##### GO Analysis - Genotypes #####
+##### GO Analysis - By genotype. Not used for paper. #####
 
 sig.genes.df <- readSigGenesGenotype(file_markers_combined_genotypes, "vs WT")
 
@@ -198,132 +209,4 @@ for (C in unique(sig.genes.df$cluster)) {
 
 # GEM file is used with the EnrichmentMap plugin for Cytoscape
 
-
-##### GSEA - genotypes #####
-
-Idents(scRNA) <- scRNA$genotype
-DefaultAssay(scRNA) <- "RNA"
-
-genotypes <- c("5XFAD", "PS19", "PS-5X")
-
-for (G in genotypes) {
-  markers <- FindMarkers(scRNA, ident.1 = G, ident.2 = "WT", 
-                         logfc.threshold = 0.0, min.pct = 0, test.use = "MAST",
-                         latent.vars = c("nCount_RNA", "StressScoreVariable"))
-  saveRDS(markers, file = file.path(dir_allcells_go, paste0("markers_", G, "vWT.rds")))
-}
-
-# Only use genes expressed in at least 10 cells for GSEA. Gives 14840 genes
-tmp <- GetAssayData(scRNA, slot = "counts")
-tmp <- tmp > 0
-ok <- rowSums(tmp)
-
-good_genes <- names(ok[ok >= 10])
-rm(tmp, ok)
-
-genes.exclude = readRDS(file_excluded_genes)
-good_genes = setdiff(good_genes, unlist(genes.exclude))
-
-as.data.frame(msigdbr_collections())
-reac <- msigdbr(species = "mouse", category = "C2", subcategory = "CP:REACTOME")
-go_bp <- msigdbr(species = "mouse", category = "C5", subcategory = "GO:BP")
-imm <- msigdbr(species = "mouse", category = "C7", subcategory = "IMMUNESIGDB")
-hall <- msigdbr(species = "mouse", category = "H")
-
-gene_set <- go_bp
-gene_set_list <- split(x = gene_set$ensembl_gene, f = gene_set$gs_name)
-set_name <- "GO:BP"
-replace_string <- "GOBP" # "HALLMARK", "REACTOME", or "GOBP". ImmuneSigDB doesn't have anything to remove
-
-# TODO I've just been re-running this with different lists, need to automate for
-# final code distribution
-sheets = list()
-
-for (G in genotypes) {
-  markers <- readRDS(file.path(dir_allcells_go, paste0("markers_", G, "vWT.rds")))
-  
-  ranks <- markers[good_genes, "avg_log2FC"]
-  names(ranks) <- geneNameToEnsembl(good_genes)
-  ranks <- ranks[abs(ranks) > 0.001] # remove near-0 values
-  ranks <- ranks[order(ranks)]
-
-  set.seed(112233)
-  
-  res <- fgsea(pathways = gene_set_list, stats = ranks, maxSize = 500)
-  res <- subset(res, !is.na(padj))
-  res <- subset(res, padj <= 0.05)
-  
-  collapsed <- collapsePathways(res, gene_set_list, ranks)
-
-  res$leadingEdgeGeneSymbols <- lapply(res$leadingEdge, ensemblToGeneName)
-  res$leadingEdgeGeneSymbols <- sapply(res$leadingEdgeGeneSymbols, str_c, collapse = ", ")
-  res$leadingEdge <- sapply(res$leadingEdge, str_c, collapse = ", ")
-  
-  gs_source <- subset(gene_set, gs_name %in% res$pathway)
-  gs_source <- unique(gs_source[,c("gs_name", "gs_exact_source")])
-  
-  res <- merge(res, gs_source, by.x = "pathway", by.y = "gs_name")
-  
-  res <- res[order(res$NES, decreasing = TRUE),]
-  
-  res$IsMainPathway <- res$pathway %in% collapsed$mainPathways
-  
-  res$pathway <- str_replace(res$pathway, replace_string, "") %>% 
-                  str_replace_all("_", " ") %>% str_to_title()
-  
-  res.display <- res[res$IsMainPathway]
-  res.display$pathway <- str_replace(res.display$pathway, replace_string, "") %>% 
-                          str_replace_all("_", " ") %>% str_to_title()
-  
-  sheets[[paste0(G, " vs WT")]] <- res
-  
-  # TODO refine and save plots to disk
-  plt <- ggplot(res.display, aes(reorder(pathway, NES), NES, fill = NES)) +
-            geom_col() +
-            coord_flip() +
-            labs(x="Pathway", y="Normalized Enrichment Score",
-                 title=paste0(set_name, " pathways NES from GSEA -- ", G, " vs WT")) + 
-            theme_classic() + theme(axis.text.y = element_text(size = 5))
-  print(plt)
-}
-
-write_xlsx(sheets, path = file.path(dir_allcells_go, "gsea_genotypes_gobp.xlsx"))
-
-for (N in names(sheets)) {
-  res <- sheets[[N]]
-  #res <- subset(res, IsMainPathway == TRUE)
-  
-  # Have to add some dummy columns for cytoscape
-  res2 <- data.frame("NAME" = res$gs_exact_source,
-                     "GS<br> follow link to MSigDB" = res$pathway,
-                     "GS DETAILS" = "",
-                     "SIZE" = res$size, 
-                     "ES" = res$ES,
-                     "NES" = res$NES,
-                     "NOM p-val" = res$pval,
-                     "FDR q-val" = res$padj,
-                     "FWER p-val" = res$padj,
-                     "RANK AT MAX" = 0,
-                     "LEADING EDGE" = res$leadingEdgeGeneSymbols,
-                     check.names = FALSE
-  )
-  
-  write.table(subset(res2, NES > 0), 
-              file = file.path(dir_allcells_go, paste0("cytoscape_gsea_", N, "_up.txt")), 
-              sep = "\t", quote = FALSE, row.names = FALSE)
-  write.table(subset(res2, NES < 0), 
-              file = file.path(dir_allcells_go, paste0("cytoscape_gsea_", N, "_down.txt")), 
-              sep = "\t", quote = FALSE, row.names = FALSE)
-}
-
-
-scRNA <- readRDS(file_seurat_analyzed_allcells)
-scRNA.cd8 <- readRDS(file_seurat_analyzed_cd8)
-scRNA.cd4 <- readRDS(file_seurat_analyzed_cd4)
-
-scRNA$clusters <- "Unassigned"
-scRNA$clusters[colnames(scRNA.cd8)] <- as.character(scRNA.cd8$clusters)
-scRNA$clusters[colnames(scRNA.cd4)] <- as.character(scRNA.cd4$clusters)
-
-Idents(scRNA) <- scRNA$clusters
-DimPlot(scRNA, shuffle = TRUE, label = TRUE)
+# Done

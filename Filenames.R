@@ -9,6 +9,9 @@ dir_cellranger <- file.path(dir_data, "CellRanger")
 dir_filtered_counts <- file.path(dir_cellranger, "count", "filtered_feature_bc_matrix")
 dir_vdj <- file.path(dir_cellranger, "vdj_t")
 
+# External data folder
+dir_data_external <- file.path(dir_data, "External")
+
 # Processed and raw clonotypes files
 file_clonotypes_summary <- file.path(dir_vdj, "clonotypes.csv")
 file_clonotypes_annotated <- file.path(dir_vdj, "filtered_contig_annotations.csv")
@@ -58,13 +61,13 @@ file_seurat_analyzed_gd <- file.path(dir_seurat, "seurat_analyzed_GD_2022-09-02.
 # All cells combined files: Cluster / Genotype markers
 dir_allcells <- file.path(dir_data, "AllCells")
 dir_allcells_go <- file.path(dir_allcells, "GO_Analysis")
-dir_allcells_gsea <- file.path(dir_allcells, "GSEA")
 file_markers_combined_all <- file.path(dir_allcells, "all_markers_combined_2022-09-02.rds")
 file_markers_combined_clusters <- file.path(dir_allcells, 'DiffGenes_byCluster_combined_2022-09-02.xlsx')
 file_markers_combined_genotypes <- file.path(dir_allcells, 'DiffGenes_byGenotype_combined_2022-09-02.xlsx')
 file_markers_combined_clusters_vs_genotype <- file.path(dir_allcells, 'DiffGenes_byGenotypePerCluster_combined_2022-09-02.xlsx')
 file_clonotypes_combined_clusters <- file.path(dir_allcells, 'Clonotypes_byCluster_combined_2022-09-02.xlsx')
 file_clonotypes_combined_genotypes <- file.path(dir_allcells, 'Clonotypes_byGenotype_combined_2022-09-02.xlsx')
+file_ad_risk_combined <- file.path(dir_allcells, "AD_DiffGenes_byCluster_allCells_2022-09-02.xlsx")
 
 
 # CD8 files: Cluster / Genotype markers
