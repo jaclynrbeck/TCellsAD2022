@@ -59,6 +59,60 @@ generateIntegratedData <- function(scRNA, method = "SCT",
 }
 
 
+# Determines which cells are CD8+, CD4+, or gamma-delta single-positive and
+# returns a list.
+# Criteria:
+# CD8+: Must express at least 1 count of either Cd8a or Cd8b1 AND doesn't 
+#       express Cd4 or any gamma-delta receptor gene
+# CD4+: Must express at least 1 count of Cd4 AND doesn't express Cd8a, Cd8b1, or
+#       any gamma-delta receptor gene
+# Gamma-delta: More stringent criteria are used to get "true" gamma-deltas. Must
+#       express at least one count of a Trd gene or Sox13 or Blk, AND doesn't
+#       express Cd4, Cd8a, or Cd8b1. 
+# Returns a list containing fields for "CD8", "CD4", "GD" (gamma-delta), 
+#       "Double" (double-positive for one of the above), "Negative" (cells that
+#       didn't meet any of the above criteria)
+getSinglePositiveCells <- function( scRNA ) {
+  assay <- GetAssayData(scRNA, slot = "counts", assay = "RNA")
+  all.genes <- rownames(assay)
+  
+  assay.cd4 <- assay["Cd4",]
+  cd4.pos <- subset(names(assay.cd4), assay.cd4 >= 1)
+  
+  assay.cd8 <- assay[c("Cd8a", "Cd8b1"),]
+  cd8.pos <- subset(colnames(assay.cd8), assay.cd8["Cd8a",] >= 1 | assay.cd8["Cd8b1",] >= 1)
+  
+  # Get all cells that express any gamma-delta marker except Trgv2 and Tcrg-C2,
+  # which seem to be anomalously expressed in many cells
+  assay.gd <- assay[grep("Trdc|Trdv|Tcrg-V|Tcrg-C1|Tcrg-C3|Tcrg-C4|Sox13|Blk", 
+                         all.genes, value=TRUE),]
+  assay.gd <- colSums(assay.gd)
+  gd.pos <- subset(names(assay.gd), assay.gd >= 1)
+  
+  # Get cells most likely to be true gamma-deltas: cells must express a Trd 
+  # gene OR Sox13 or Blk, which are specific to gamma delta 17's
+  assay.gd <- assay[grep("Trdc|Trdv|Sox13|Blk", all.genes, value=TRUE),]
+  assay.gd <- colSums(assay.gd)
+  gd.delta <- subset(names(assay.gd), assay.gd >= 1)
+  
+  cd4cd8 <- intersect(cd4.pos, cd8.pos)
+  cd4gd <- intersect(cd4.pos, gd.pos) # use gd.pos and not gd.delta here
+  cd8gd <- intersect(cd8.pos, gd.pos) # use gd.pos and not gd.delta here
+  
+  double.pos <- unique(c(cd4cd8, cd4gd, cd8gd))
+  
+  # Remove double positives
+  cd8.pos <- cd8.pos[!(cd8.pos %in% double.pos)]
+  cd4.pos <- cd4.pos[!(cd4.pos %in% double.pos)]
+  gd.delta <- gd.delta[!(gd.delta %in% double.pos)]
+  
+  neg <- setdiff(colnames(scRNA), c(cd8.pos, cd4.pos, gd.delta, double.pos))
+  
+  list("CD8" = cd8.pos, "CD4" = cd4.pos, "GD" = gd.delta, "Double" = double.pos, 
+       "Negative" = neg)
+}
+
+
 matchTcrs <- function( scRNA, tcr.anno, tcr.epi = NULL ) {
   tcr.match <- subset(tcr.anno, Seurat.Barcode %in% colnames(scRNA))
 
@@ -375,218 +429,10 @@ getHighestExpressedGenes <- function( scRNA, ngenes = 10 ) {
 }
 
 
+
+
+
 ##### Not refactored yet #####
-
-getGammaDeltas2 <- function( scRNA ) {
-  DefaultAssay(scRNA) <- "RNA"
-  scRNA <- DietSeurat(scRNA, assays = c("RNA"))
-  
-  all.genes <- rownames(scRNA)
-  tras <- grep("^Tra[v|j]", all.genes, value=TRUE)
-  tratrd <- grep("-dv", tras, value=TRUE) # Could be alpha or delta
-  tras <- setdiff(tras, tratrd)
-  
-  receptors.df <- list("TRA" = tras, 
-                       "TRA.C" = grep("^Trac", all.genes, value=TRUE),
-                       "TRB" = grep("^Trbv", all.genes, value=TRUE),
-                       "TRB.C" = grep("^Trbc", all.genes, value=TRUE),
-                       #"TRA.TRD" = tratrd, 
-                       "TRD" = grep("^Trdv", all.genes, value=TRUE),
-                       "TRD.C" = grep("^Trdc", all.genes, value=TRUE),
-                       "TRG" = c(grep("^Trgv", all.genes, value=TRUE), 
-                                 grep("^Tcrg-V", all.genes, value=TRUE)),
-                       "TRG.C" = grep("^Tcrg-C", all.genes, value=TRUE))
-                       #"CD" = c("Cd4", "Cd8a", "Cd8b1"))
-  
-  receptors.df <- stack(receptors.df) %>% as.data.frame()
-  colnames(receptors.df) <- c("Gene", "Category")
-  rownames(receptors.df) <- receptors.df$Gene
-  
-  categories <- unique(receptors.df$Category)
-  assay <- GetAssayData(scRNA, slot="counts")
-  assay <- assay[receptors.df$Gene,]
-  
-  neg.cells <- colnames(scRNA)[which(!(colnames(scRNA) %in% tcr.anno$Sample))]
-  tcr.ab <- subset(receptors.df, Category %in% c("TRA", "TRA.C", "TRB", "TRB.C"))
-  tcr.gd <- subset(receptors.df, Category %in% c("TRD", "TRD.C", "TRG", "TRG.C"))
-  assay.gd <- assay[tcr.gd$Gene, neg.cells]
-  gd <- colnames(assay.gd)[which(colSums(assay.gd) > 1)]
-  
-  colmax.ab <- apply(assay[tcr.ab$Gene, neg.cells], 2, max)
-  colmax.gd <- apply(assay[tcr.gd$Gene, neg.cells], 2, max)
-  
-  gd2 <- neg.cells[which(colmax.gd > colmax.ab)]
-  
-  scRNA2 <- scRNA[,neg.cells]
-  
-  for (cat in categories) {
-    genes <- subset(receptors.df, Category == cat)
-    if (length(genes$Gene) == 1) {
-      colmax <- assay[genes$Gene,]
-    }
-    else {
-      colmax <- apply(assay[genes$Gene,], 2, max)
-    }
-    scRNA <- AddMetaData(scRNA, colmax, col.name = paste0(cat, ".Max"))
-    #scRNA2 <- AddModuleScore_UCell(scRNA2, features = genes$Gene, name = cat, 
-    #                               maxRank = 10000, storeRanks = TRUE)
-  }
-  
-  for (cat in categories) {
-    #cols <- grep(paste0("^", cat, "[0-9]+"), colnames(scRNA2@meta.data), value=TRUE)
-    cols <- grep(paste0(cat, "$"), colnames(scRNA2@meta.data), value=TRUE)
-    meta <- scRNA2@meta.data[,cols]
-    if (length(cols) == 1) {
-      mx <- meta
-    }
-    else {
-      mx <- apply(meta, 1, max)
-    }
-    scRNA2 <- AddMetaData(scRNA2, mx, col.name = paste0(cat, ".Max"))
-  }
-  
-  abs <- paste0(c("TRA", "TRA.C", "TRB", "TRB.C"), ".Max")
-  gds <- paste0(c("TRD", "TRD.C", "TRG", "TRG.C"), ".Max")
-  
-  scRNA2 <- AddMetaData(scRNA2, rowSums(scRNA2@meta.data[abs]), col.name = "AB.Score")
-  scRNA2 <- AddMetaData(scRNA2, rowSums(scRNA2@meta.data[gds]), col.name = "GD.Score")
-  
-  scRNA2 <- AddMetaData(scRNA2, scRNA2$GD.Score > scRNA2$AB.Score, col.name = "Is.GD")
-  
-  gammas <- names(which(scRNA2$Is.GD))
-}
-
-getGammaDeltas <- function( scRNA, tcr.anno ) {
-  DefaultAssay(scRNA) <- "RNA"
-  all.genes <- rownames(scRNA)
-  tras <- grep("^Tra[v|j]", all.genes, value=TRUE)
-  tratrd <- grep("-dv", tras, value=TRUE) # Could be alpha or delta
-  tras <- setdiff(tras, tratrd)
-  
-  receptors.df <- list("TRA" = tras, 
-                       "TRA.C" = grep("^Trac", all.genes, value=TRUE),
-                       "TRB" = grep("^Trbv", all.genes, value=TRUE),
-                       "TRB.C" = grep("^Trbc", all.genes, value=TRUE),
-                       "TRA.TRD" = tratrd, 
-                       "TRD" = grep("^Trdv", all.genes, value=TRUE),
-                       "TRD.C" = grep("^Trdc", all.genes, value=TRUE),
-                       "TRG" = c(grep("^Trgv", all.genes, value=TRUE), 
-                                 grep("^Tcrg-V", all.genes, value=TRUE)),
-                       "TRG.C" = grep("^Tcrg-C", all.genes, value=TRUE))
-  
-  receptors.df <- stack(receptors.df) %>% as.data.frame()
-  colnames(receptors.df) <- c("Gene", "Category")
-  rownames(receptors.df) <- receptors.df$Gene
-  
-  categories <- unique(receptors.df$Category)
-  assay <- GetAssayData(scRNA, slot = "counts", assay = "RNA")
-  assay <- assay[receptors.df$Gene,]
-  
-  # Cells with no recognized clonotype
-  tcr.match <- matchTcrs(scRNA, tcr.anno)
-  neg.cells <- colnames(scRNA)[which(!(colnames(scRNA) %in% tcr.match$Sample))]
-  
-  # Cells with a recognized TRB only (no TRA) could also be gamma deltas
-  tmp <- which(nchar(tcr.match$TRA.V) < 4 & nchar(tcr.match$TRA.J) < 4 & 
-                 nchar(tcr.match$TRA.C) < 4)
-  neg.cells <- c(neg.cells, tcr.match$Sample[tmp])
-  
-  # Cells with a TRA with "-DV" in the name could also be gamma deltas
-  tmp <- grep("-DV", tcr.match$TRA.V)
-  tmp.tcr <- tcr.match[tmp,]
-  neg.cells <- c(neg.cells, tmp.tcr$Sample)
-  
-  # Exclude MAITs and iNKTs
-  mait <- subset(tcr.match, MAIT == TRUE | iNKT == TRUE)$Sample
-  assay.mait <- assay[c("Trbv1", "Trbv13-1", "Trav11", "Trav1", "Traj18",
-                        "Trbv13-2", "Trbv13-3", "Trbv19", "Trbv29"),]
-  assay.mait <- colSums(assay.mait)
-  mait <- unique(c(mait, names(assay.mait)[assay.mait >= 1]))
-  neg.cells <- setdiff(neg.cells, mait)
-  
-  #tcr.ab <- subset(receptors.df, Category %in% c("TRA", "TRA.C", "TRB", "TRB.C"))
-  tcr.gd <- subset(receptors.df, Category %in% c("TRD", "TRD.C", "TRG", "TRG.C"))
-  assay.gd <- assay[tcr.gd$Gene, neg.cells]
-  
-  assay.gd <- assay[tcr.gd$Gene,]
-  #assay.gd <- assay[grep("Tcrg-V|Tcrg-C1|Tcrg-C4|Trdv|Trdc", all.genes, value=TRUE),]
-  gd <- colnames(assay.gd)[which(colSums(assay.gd) > 0)]
-  gd <- setdiff(gd, mait)
-  
-  # Cells that contain at least one count of gamma delta receptor genes
-  #gd <- colnames(assay.gd)[which(colSums(assay.gd) > 0)]
-}
-
-expressesGDPair <- function( assay, v.gene, c.gene ) {
-  pair <- assay[c(v.gene, c.gene),] > 0
-  return(colSums(pair) >= 2)
-}
-
-
-getSinglePositiveCells <- function( scRNA, tcr.anno ) {
-  assay <- GetAssayData(scRNA, slot = "counts", assay = "RNA")
-  all.genes <- rownames(assay)
-  
-  assay.cd4 <- assay["Cd4",]
-  cd4.pos <- subset(names(assay.cd4), assay.cd4 >= 1)
-  
-  assay.cd8 <- assay[c("Cd8a", "Cd8b1"),]
-  cd8.pos <- subset(colnames(assay.cd8), assay.cd8["Cd8a",] >= 1 | assay.cd8["Cd8b1",] >= 1)
-  
-  # Get all cells that express any gamma-delta marker except Trgv2 and Tcrg-C2,
-  # which seem to be anomalously expressed in many cells
-  assay.gd <- assay[grep("Trdc|Trdv|Tcrg-V|Tcrg-C1|Tcrg-C3|Tcrg-C4|Sox13|Blk", all.genes, value=TRUE),]
-  assay.gd <- colSums(assay.gd)
-  gd.pos <- subset(names(assay.gd), assay.gd >= 1)
-  
-  # Get cells most likely to be true gamma-deltas: cells must express a Trd 
-  # gene OR the correct pairing of Trg genes: (Tcrg-V1 + Tcrg-C4, 
-  # Tcrg-V3 + Tcrg-C3, or Tcrg-V4/V5/V6/V7 + Tcrg-C1)
-  assay.gd <- assay[grep("Trdc|Trdv|Sox13|Blk", all.genes, value=TRUE),]
-  assay.gd <- colSums(assay.gd)
-  gd.delta <- subset(names(assay.gd), assay.gd >= 1)
-  
-  #matches <- expressesGDPair(assay, "Tcrg-V1", "Tcrg-C4") |
-  #  expressesGDPair(assay, "Tcrg-V3", "Tcrg-C3") |
-  #  expressesGDPair(assay, "Tcrg-V4", "Tcrg-C1") |
-  #  expressesGDPair(assay, "Tcrg-V5", "Tcrg-C1") |
-  #  expressesGDPair(assay, "Tcrg-V6", "Tcrg-C1") |
-  #  expressesGDPair(assay, "Tcrg-V7", "Tcrg-C1")
-  
-  #gd.true <- unique(c(gd.delta, colnames(scRNA)[matches]))
-  
-  # Remove MAITs and iNKTs
-  #mait <- subset(tcr.anno, Sample %in% colnames(scRNA) & 
-  #                 (MAIT == TRUE | iNKT == TRUE))$Sample
-  #assay.mait <- assay[c("Trbv1", "Trbv13-1", "Trav11", "Trav1", "Traj18",
-  #                      "Trbv13-2", "Trbv13-3", "Trbv19", "Trbv29"),]
-  #assay.mait <- colSums(assay.mait)
-  #mait <- unique(c(mait, names(assay.mait)[assay.mait >= 1]))
-  #gd.pos <- setdiff(gd.pos, mait)
-  
-  #gd.pos <- getGammaDeltas(scRNA, tcr.anno) 
-  
-  #assay.ab <- assay[grep("Trac|Traj|Trav|^Trb", all.genes, value=TRUE),]
-  #assay.ab <- colSums(assay.ab)
-  #ab.pos <- subset(names(assay.ab), assay.ab >= 1)
-  
-  cd4cd8 <- intersect(cd4.pos, cd8.pos)
-  cd4gd <- intersect(cd4.pos, gd.pos) # use gd.pos and not gd.true here
-  cd8gd <- intersect(cd8.pos, gd.pos) # use gd.pos and not gd.true here
-  #abgd <- intersect(ab.pos, gd.pos)
-  
-  double.pos <- unique(c(cd4cd8, cd4gd, cd8gd))
-  
-  # Remove double positives
-  cd8.pos <- cd8.pos[!(cd8.pos %in% double.pos)]
-  cd4.pos <- cd4.pos[!(cd4.pos %in% double.pos)]
-  gd.delta <- gd.delta[!(gd.delta %in% double.pos)]
-
-  neg <- setdiff(colnames(scRNA), c(cd8.pos, cd4.pos, gd.delta, double.pos))
-  
-  list("CD8" = cd8.pos, "CD4" = cd4.pos, "GD" = gd.delta, "Double" = double.pos, 
-       "Negative" = neg)
-}
 
 
 # Queries BioMart to get mouse homologs for human genes

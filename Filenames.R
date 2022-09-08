@@ -54,7 +54,7 @@ file_seurat_norm_gd <- file.path(dir_seurat, "seurat_SCT_GD_2022-09-02.rds")
 
 # Analyzed Seurat objects
 file_seurat_analyzed_allcells <- file.path(dir_seurat, "seurat_analyzed_allcells_2022-09-02.rds")
-file_seurat_analyzed_cd8 <- file.path(dir_seurat, "seurat_analyzed_CD8_2022-09-02.rds")
+file_seurat_analyzed_cd8 <- file.path(dir_seurat, "seurat_analyzed_CD8_2022-09-08.rds")
 file_seurat_analyzed_cd4 <- file.path(dir_seurat, "seurat_analyzed_CD4_2022-09-02.rds")
 file_seurat_analyzed_gd <- file.path(dir_seurat, "seurat_analyzed_GD_2022-09-02.rds")
 
@@ -73,12 +73,12 @@ file_ad_risk_combined <- file.path(dir_allcells, "AD_DiffGenes_byCluster_allCell
 # CD8 files: Cluster / Genotype markers
 dir_cd8 <- file.path(dir_data, "CD8")
 dir_cd8_go <- file.path(dir_cd8, "GO_Analysis")
-file_markers_cd8_all <- file.path(dir_cd8, "all_markers_cd8_2022-05-19.rds")
-file_markers_cd8_clusters <- file.path(dir_cd8, 'DiffGenes_byCluster_CD8_2022-05-19.xlsx')
-file_markers_cd8_genotypes <- file.path(dir_cd8, 'DiffGenes_byGenotype_CD8_2022-05-19.xlsx')
-file_markers_cd8_clusters_vs_genotype <- file.path(dir_cd8, 'DiffGenes_byGenotypePerCluster_cd8_2022-05-19.xlsx')
-file_clonotypes_cd8_clusters <- file.path(dir_cd8, 'Clonotypes_byCluster_CD8_2022-05-19.xlsx')
-file_clonotypes_cd8_genotypes <- file.path(dir_cd8, 'Clonotypes_byGenotype_CD8_2022-05-19.xlsx')
+file_markers_cd8_all <- file.path(dir_cd8, "all_markers_cd8_2022-09-08.rds")
+file_markers_cd8_clusters <- file.path(dir_cd8, 'DiffGenes_byCluster_CD8_2022-09-08.xlsx')
+file_markers_cd8_genotypes <- file.path(dir_cd8, 'DiffGenes_byGenotype_CD8_2022-09-08.xlsx')
+file_markers_cd8_clusters_vs_genotype <- file.path(dir_cd8, 'DiffGenes_byGenotypePerCluster_cd8_2022-09-08.xlsx')
+file_clonotypes_cd8_clusters <- file.path(dir_cd8, 'Clonotypes_byCluster_CD8_2022-09-08.xlsx')
+file_clonotypes_cd8_genotypes <- file.path(dir_cd8, 'Clonotypes_byGenotype_CD8_2022-09-08.xlsx')
 
 
 # CD4 files: Cluster / Genotype markers
