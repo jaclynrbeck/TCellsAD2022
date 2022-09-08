@@ -9,8 +9,10 @@ dir_cellranger <- file.path(dir_data, "CellRanger")
 dir_filtered_counts <- file.path(dir_cellranger, "count", "filtered_feature_bc_matrix")
 dir_vdj <- file.path(dir_cellranger, "vdj_t")
 
+
 # External data folder
 dir_data_external <- file.path(dir_data, "External")
+
 
 # Processed and raw clonotypes files
 file_clonotypes_summary <- file.path(dir_vdj, "clonotypes.csv")
@@ -18,9 +20,11 @@ file_clonotypes_annotated <- file.path(dir_vdj, "filtered_contig_annotations.csv
 file_clonotypes_annotated_edited <- file.path(dir_vdj, "filtered_contig_annotations_edited.csv")
 file_clonotypes_processed <- file.path(dir_cellranger, "clonotypes_processed.csv")
 
+
 # Gene symbols / ensembl IDs files
 file_gene_symbols <- file.path(dir_data, "gene_symbols.rds")
 file_excluded_genes <- file.path(dir_data, "excluded_genes.rds")
+
 
 # Epitope matching
 dir_epitope_matching <- file.path(dir_data, "EpitopeMatching")
@@ -39,10 +43,12 @@ file_combined_alpha <- file.path(dir_epitope_output, "alpha_combined.tsv")
 file_combined_beta <- file.path(dir_epitope_output, "beta_combined.tsv")
 file_matched_epitopes <- file.path(dir_data, "matched_epitopes.tsv")
 
+
 # VDJTools
 dir_vdjtools <- file.path(dir_data, "VDJTools")
 dir_vdjtools_input <- file.path(dir_vdjtools, "input")
 dir_vdjtools_output <- file.path(dir_vdjtools, "output")
+
 
 # Un-normalized and normalized Seurat objects, no analysis included
 dir_seurat <- file.path(dir_data, "Seurat")
@@ -52,11 +58,13 @@ file_seurat_norm_cd8 <- file.path(dir_seurat, "seurat_integrated_CD8_2022-09-02.
 file_seurat_norm_cd4 <- file.path(dir_seurat, "seurat_SCT_CD4_2022-09-02.rds")
 file_seurat_norm_gd <- file.path(dir_seurat, "seurat_SCT_GD_2022-09-02.rds")
 
+
 # Analyzed Seurat objects
 file_seurat_analyzed_allcells <- file.path(dir_seurat, "seurat_analyzed_allcells_2022-09-02.rds")
 file_seurat_analyzed_cd8 <- file.path(dir_seurat, "seurat_analyzed_CD8_2022-09-08.rds")
 file_seurat_analyzed_cd4 <- file.path(dir_seurat, "seurat_analyzed_CD4_2022-09-02.rds")
 file_seurat_analyzed_gd <- file.path(dir_seurat, "seurat_analyzed_GD_2022-09-02.rds")
+
 
 # All cells combined files: Cluster / Genotype markers
 dir_allcells <- file.path(dir_data, "AllCells")
@@ -83,22 +91,22 @@ file_clonotypes_cd8_genotypes <- file.path(dir_cd8, 'Clonotypes_byGenotype_CD8_2
 
 # CD4 files: Cluster / Genotype markers
 dir_cd4 <- file.path(dir_data, "CD4")
-dir_cd4_go <- file.path(dir_cd4, "GO_Analysis")
-file_markers_cd4_all <- file.path(dir_cd4, "all_markers_cd4_2022-05-26.rds")
-file_markers_cd4_clusters <- file.path(dir_cd4, 'DiffGenes_byCluster_CD4_2022-05-26.xlsx')
-file_markers_cd4_genotypes <- file.path(dir_cd4, 'DiffGenes_byGenotype_CD4_2022-05-26.xlsx')
-file_markers_cd4_clusters_vs_genotype <- file.path(dir_cd4, 'DiffGenes_byGenotypePerCluster_cd4_2022-05-26.xlsx')
-file_clonotypes_cd4_clusters <- file.path(dir_cd4, 'Clonotypes_byCluster_CD4_2022-05-26.xlsx')
-file_clonotypes_cd4_genotypes <- file.path(dir_cd4, 'Clonotypes_byGenotype_CD4_2022-05-26.xlsx')
+file_markers_cd4_all <- file.path(dir_cd4, "all_markers_cd4_2022-09-08.rds")
+file_markers_cd4_clusters <- file.path(dir_cd4, 'DiffGenes_byCluster_CD4_2022-09-08.xlsx')
+file_markers_cd4_genotypes <- file.path(dir_cd4, 'DiffGenes_byGenotype_CD4_2022-09-08.xlsx')
+file_markers_cd4_clusters_vs_genotype <- file.path(dir_cd4, 'DiffGenes_byGenotypePerCluster_cd4_2022-09-08.xlsx')
+file_clonotypes_cd4_clusters <- file.path(dir_cd4, 'Clonotypes_byCluster_CD4_2022-09-08.xlsx')
+file_clonotypes_cd4_genotypes <- file.path(dir_cd4, 'Clonotypes_byGenotype_CD4_2022-09-08.xlsx')
+
 
 # Gamma delta files: Cluster / Genotype markers
 dir_gd <- file.path(dir_data, "GammaDelta")
-file_markers_gd_all <- file.path(dir_gd, "all_markers_gd_2022-06-28.rds")
-file_markers_gd_clusters <- file.path(dir_gd, 'DiffGenes_byCluster_GD_2022-06-28.xlsx')
-file_markers_gd_genotypes <- file.path(dir_gd, 'DiffGenes_byGenotype_GD_2022-06-28.xlsx')
-file_markers_gd_clusters_vs_genotype <- file.path(dir_gd, 'DiffGenes_byGenotypePerCluster_GD_2022-06-28.xlsx')
-file_clonotypes_gd_clusters <- file.path(dir_gd, 'Clonotypes_byCluster_GD_2022-06-28.xlsx')
-file_clonotypes_gd_genotypes <- file.path(dir_gd, 'Clonotypes_byGenotype_GD_2022-06-28.xlsx')
+file_markers_gd_all <- file.path(dir_gd, "all_markers_gd_2022-09-08.rds")
+file_markers_gd_clusters <- file.path(dir_gd, 'DiffGenes_byCluster_GD_2022-09-08.xlsx')
+file_markers_gd_genotypes <- file.path(dir_gd, 'DiffGenes_byGenotype_GD_2022-09-08.xlsx')
+file_markers_gd_clusters_vs_genotype <- file.path(dir_gd, 'DiffGenes_byGenotypePerCluster_GD_2022-09-08.xlsx')
+file_clonotypes_gd_clusters <- file.path(dir_gd, 'Clonotypes_byCluster_GD_2022-09-08.xlsx')
+file_clonotypes_gd_genotypes <- file.path(dir_gd, 'Clonotypes_byGenotype_GD_2022-09-08.xlsx')
 
 # Figures
 dir_figures <- file.path("figures")

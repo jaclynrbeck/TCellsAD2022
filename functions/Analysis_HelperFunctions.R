@@ -429,11 +429,7 @@ getHighestExpressedGenes <- function( scRNA, ngenes = 10 ) {
 }
 
 
-
-
-
-##### Not refactored yet #####
-
+##### BioMart Queries #####
 
 # Queries BioMart to get mouse homologs for human genes
 # human.genes: vector of gene names
@@ -450,55 +446,6 @@ getHumanMouseHomologs <- function(human.genes) {
                      mart = ens.human,
                      attributesL = c('mgi_symbol'), 
                      martL = ens.mouse)
-}
-
-
-plotGeneExpressionUMAP <- function(scRNA, gene.list, zero.cutoff = TRUE) {
-  for (M in seq(1,length(gene.list), 8)) {
-    end = min(7, length(gene.list) - M)
-    
-    if (zero.cutoff == TRUE) {
-      plt = FeaturePlot(scRNA, features = gene.list[M:(M+end)], pt.size = 0.5,
-                        ncol = 4, label = FALSE, cols = c("#eeeeee", "red"), 
-                        order = TRUE, min.cutoff = 0)
-    }
-    else {
-      plt = FeaturePlot(scRNA, features = gene.list[M:(M+end)], pt.size = 0.5,
-                        ncol = 4, label = FALSE, #cols = c("blue", "red"), 
-                        order = TRUE) & 
-            scale_color_viridis(option = "plasma")
-    }
-    
-    print(plt)
-  }
-}
-
-
-plotGeneExpressionViolin <- function(scRNA, gene.list, zero.cutoff = TRUE, 
-                                     group.by = "orig.ident", colors = NULL) {
-  for (M in seq(1,length(gene.list), 4)) {
-    end = min(3, length(gene.list) - M)
-    
-    if (zero.cutoff == TRUE) {
-      plt1 <- FeaturePlot(scRNA, features = gene.list[M:(M+end)], pt.size = 0.5,
-                         ncol = 4, label = FALSE, cols = c("#eeeeee", "red"), 
-                         order = TRUE, min.cutoff = 0, combine = FALSE)
-    }
-    else {
-      plt1 <- FeaturePlot(scRNA, features = gene.list[M:(M+end)], pt.size = 0.5,
-                         ncol = 4, label = FALSE, order = TRUE, combine = FALSE)
-      plt1 <- lapply(plt1, function(P) P + 
-                       scale_color_viridis(option = "plasma"))
-    }
-    
-    plt2 <- VlnPlot(scRNA, features = gene.list[M:(M+end)], pt.size = 0, 
-                    ncol = 4, cols = colors, group.by = group.by, 
-                    combine = FALSE)
-    plt2 <- lapply(plt2, function(P) P + NoLegend())
-    
-    
-    print(Reduce('|', plt1) / Reduce('|', plt2))
-  }
 }
 
 
