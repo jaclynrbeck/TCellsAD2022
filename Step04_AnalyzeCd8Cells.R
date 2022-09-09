@@ -4,6 +4,8 @@
 #   Differential genes between genotypes
 #   List of clonotypes per cluster
 #   List of clonotypes per genotype
+#   Differential genes between Cytotoxic 1, Cytotoxic 2, and Exhausted clusters
+#   DPA to look for sig population differences (takes a long time)
 #   Significant GO terms based on cluster DGE (gprofiler, not used in paper)
 # This script was written to be run line-by-line because of exploratory plots
 # to determine parameters. The values as entered in the script are those used
@@ -12,7 +14,7 @@
 # require a new script.
 
 # Author: Jaclyn Beck
-# Final script used for paper as of Sep 08, 2022
+# Final script used for paper as of Sep 09, 2022
 
 library(Seurat)
 library(dplyr)
@@ -22,6 +24,7 @@ library(ggplot2)
 library(gprofiler2)
 source(file.path("functions", "Analysis_HelperFunctions.R"))
 source(file.path("functions", "General_HelperFunctions.R"))
+source(file.path("functions", "DPA_HelperFunctions.R"))
 source("Filenames.R")
 
 
@@ -151,6 +154,17 @@ cyto.markers <- filter(cyto.markers, p_val_adj <= FDR & pct.1 >= 0.1)
 cyto.markers <- cyto.markers[order(-cyto.markers$avg_log2FC),]
 cyto.markers$Ensembl.Id <- geneNameToEnsembl(rownames(cyto.markers))
 write.csv(cyto.markers, file.path(dir_cd8, "DiffGenes_Cytotoxic2vExhausted.csv"))
+
+
+##### DPA #####
+
+# This takes a long time with 10,000 iterations. 
+Idents(scRNA) <- scRNA$clusters
+runDPA(scRNA, file_dpa_cd8_glm_summary, file_dpa_cd8_pairwise,
+       file.path(dir_cd8_dpa, "res_intermediate.rds"),
+       file.path(dir_cd8_dpa, "fit_intermediate.rds"),
+       file.path(dir_cd8_dpa, "pairwise_intermediate.rds"),
+       nIter = 10000)
 
 
 ##### Everything beyond this point was not used in the paper #####

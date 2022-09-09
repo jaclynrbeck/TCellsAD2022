@@ -69,6 +69,7 @@ file_seurat_analyzed_gd <- file.path(dir_seurat, "seurat_analyzed_GD_2022-09-02.
 # All cells combined files: Cluster / Genotype markers
 dir_allcells <- file.path(dir_data, "AllCells")
 dir_allcells_go <- file.path(dir_allcells, "GO_Analysis")
+dir_allcells_dpa <- file.path(dir_allcells, "DPA")
 file_markers_combined_all <- file.path(dir_allcells, "all_markers_combined_2022-09-02.rds")
 file_markers_combined_clusters <- file.path(dir_allcells, 'DiffGenes_byCluster_combined_2022-09-02.xlsx')
 file_markers_combined_genotypes <- file.path(dir_allcells, 'DiffGenes_byGenotype_combined_2022-09-02.xlsx')
@@ -76,17 +77,22 @@ file_markers_combined_clusters_vs_genotype <- file.path(dir_allcells, 'DiffGenes
 file_clonotypes_combined_clusters <- file.path(dir_allcells, 'Clonotypes_byCluster_combined_2022-09-02.xlsx')
 file_clonotypes_combined_genotypes <- file.path(dir_allcells, 'Clonotypes_byGenotype_combined_2022-09-02.xlsx')
 file_ad_risk_combined <- file.path(dir_allcells, "AD_DiffGenes_byCluster_allCells_2022-09-02.xlsx")
+file_dpa_allcells_glm_summary <- file.path(dir_allcells_dpa, "DPA_combined_GLM_summary_2022-09-09.csv")
+file_dpa_allcells_pairwise <- file.path(dir_allcells_dpa, "DPA_combined_pairwise_comparisons_2022-09-09.xlsx")
 
 
 # CD8 files: Cluster / Genotype markers
 dir_cd8 <- file.path(dir_data, "CD8")
 dir_cd8_go <- file.path(dir_cd8, "GO_Analysis")
+dir_cd8_dpa <- file.path(dir_cd8, "DPA")
 file_markers_cd8_all <- file.path(dir_cd8, "all_markers_cd8_2022-09-08.rds")
 file_markers_cd8_clusters <- file.path(dir_cd8, 'DiffGenes_byCluster_CD8_2022-09-08.xlsx')
 file_markers_cd8_genotypes <- file.path(dir_cd8, 'DiffGenes_byGenotype_CD8_2022-09-08.xlsx')
 file_markers_cd8_clusters_vs_genotype <- file.path(dir_cd8, 'DiffGenes_byGenotypePerCluster_cd8_2022-09-08.xlsx')
 file_clonotypes_cd8_clusters <- file.path(dir_cd8, 'Clonotypes_byCluster_CD8_2022-09-08.xlsx')
 file_clonotypes_cd8_genotypes <- file.path(dir_cd8, 'Clonotypes_byGenotype_CD8_2022-09-08.xlsx')
+file_dpa_cd8_glm_summary <- file.path(dir_cd8_dpa, "DPA_CD8_GLM_summary_2022-09-09.csv")
+file_dpa_cd8_pairwise <- file.path(dir_cd8_dpa, "DPA_CD8_pairwise_comparisons_2022-09-09.xlsx")
 
 
 # CD4 files: Cluster / Genotype markers
@@ -108,10 +114,22 @@ file_markers_gd_clusters_vs_genotype <- file.path(dir_gd, 'DiffGenes_byGenotypeP
 file_clonotypes_gd_clusters <- file.path(dir_gd, 'Clonotypes_byCluster_GD_2022-09-08.xlsx')
 file_clonotypes_gd_genotypes <- file.path(dir_gd, 'Clonotypes_byGenotype_GD_2022-09-08.xlsx')
 
+
 # Figures
 dir_figures <- file.path("figures")
 dir_figures_allcells <- file.path(dir_figures, "AllCells")
 dir_figures_cd8 <- file.path(dir_figures, "CD8")
 dir_figures_cd4 <- file.path(dir_figures, "CD4")
 dir_figures_gd <- file.path(dir_figures, "GammaDelta")
+
+
+# Ensure all directories we plan to read/write to exist. 
+dirs <- grep("dir_", ls(), value = TRUE)
+for (D in dirs) {
+  dir_eval <- eval(parse(text = D))
+  if (!file.exists(dir_eval)) {
+    dir.create(dir_eval)
+    print(paste0("Created directory ", dir_eval))
+  }
+}
 

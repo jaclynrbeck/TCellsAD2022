@@ -5,13 +5,14 @@
 #   List of clonotypes per cluster
 #   List of clonotypes per genotype
 #   List of AD risk genes significantly changed between clusters
+#   DPA to look for sig population differences (takes a long time)
 #   Significant GO terms based on genotype DGE (gprofiler, not used in paper)
 # This script was written to be run line-by-line because of exploratory plots
 # to determine parameters. The values as entered in the script are those used
 # for the paper.
 
 # Author: Jaclyn Beck
-# Final script used for paper as of Sep 02, 2022
+# Final script used for paper as of Sep 09, 2022
 
 library(Seurat)
 library(dplyr)
@@ -21,6 +22,7 @@ library(ggplot2)
 library(gprofiler2)
 source(file.path("functions", "Analysis_HelperFunctions.R"))
 source(file.path("functions", "General_HelperFunctions.R"))
+source(file.path("functions", "DPA_HelperFunctions.R"))
 source("Filenames.R")
 
 
@@ -151,6 +153,17 @@ sig.genes <- lapply(diff.genes, function(D) {
 })
 
 write_xlsx(sig.genes, path = file_ad_risk_combined)
+
+
+##### DPA #####
+
+# This takes a long time with 10,000 iterations. 
+Idents(scRNA) <- scRNA$clusters
+runDPA(scRNA, file_dpa_allcells_glm_summary, file_dpa_allcells_pairwise,
+       file.path(dir_allcells_dpa, "res_intermediate.rds"),
+       file.path(dir_allcells_dpa, "fit_intermediate.rds"),
+       file.path(dir_allcells_dpa, "pairwise_intermediate.rds"),
+       nIter = 10000)
 
 
 ##### Everything beyond this point was not used in the paper #####

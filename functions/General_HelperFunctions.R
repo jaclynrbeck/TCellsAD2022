@@ -1,8 +1,7 @@
 # Helper functions used by multiple processing steps. 
 
 # Author: Jaclyn Beck
-# Final script used for paper as of Sep 02, 2022
-
+# Final script used for paper as of Sep 09, 2022
 
 
 # Returns a Seurat object that only contains cells that are "positive" for a 
@@ -71,6 +70,31 @@ downsample <- function( scRNA ) {
   
   scRNA.down <- subset(scRNA, cells = cells)
   scRNA.down
+}
+
+
+# Reads significant genes from specific tabs of the genotype diff genes file.
+# filename: full file path to the genotype diff genes file, generated from
+#           writeGenotypeDifferentialGenes().
+# pattern: regular expression for grep search on tab names. Example: "All"
+#          will find all sheets with "<genotype> vs All". "vs WT" would find
+#          all sheets with "<genotype> vs WT". 
+readSigGenesGenotype <- function ( filename, pattern = "All" ) {
+  diff.genes <- lapply(excel_sheets(filename), read_excel, 
+                       path = filename)
+  names(diff.genes) <- excel_sheets(filename)
+  
+  sig.genes <- Map(function(i, x) {
+    x$cluster <- i
+    x
+  }, names(diff.genes), diff.genes)
+  
+  sig.genes.df <- do.call(rbind, sig.genes)
+  
+  comparisons <- unique(grep(pattern, sig.genes.df$cluster, value = TRUE))
+  sig.genes.df <- subset(sig.genes.df, cluster %in% comparisons)
+  
+  sig.genes.df
 }
 
 

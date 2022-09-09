@@ -1,7 +1,7 @@
 # Helper functions that are used in the analysis steps only (Steps 3-6)
 
 # Author: Jaclyn Beck
-# Final script used for paper as of Sep 02, 2022
+# Final script used for paper as of Sep 09, 2022
 
 library(readxl)
 library(writexl)
@@ -330,31 +330,6 @@ writeGenotypeClonotypes <- function( scRNA, tcr.anno, genotypes, clono.file, out
   }
   
   write_xlsx(sheets, path=out.file)
-}
-
-
-# Reads significant genes from specific tabs of the genotype diff genes file.
-# filename: full file path to the genotype diff genes file, generated from
-#           writeGenotypeDifferentialGenes().
-# pattern: regular expression for grep search on tab names. Example: "All"
-#          will find all sheets with "<genotype> vs All". "vs WT" would find
-#          all sheets with "<genotype> vs WT". 
-readSigGenesGenotype <- function ( filename, pattern = "All" ) {
-  diff.genes <- lapply(excel_sheets(filename), read_excel, 
-                       path = filename)
-  names(diff.genes) <- excel_sheets(filename)
-  
-  sig.genes <- Map(function(i, x) {
-    x$cluster <- i
-    x
-  }, names(diff.genes), diff.genes)
-  
-  sig.genes.df <- do.call(rbind, sig.genes)
-  
-  comparisons <- unique(grep(pattern, sig.genes.df$cluster, value = TRUE))
-  sig.genes.df <- subset(sig.genes.df, cluster %in% comparisons)
-  
-  sig.genes.df
 }
 
 
