@@ -4,6 +4,7 @@
 # Main data directory
 dir_data <- "data"
 
+
 # Raw data from CellRanger
 dir_cellranger <- file.path(dir_data, "CellRanger")
 dir_filtered_counts <- file.path(dir_cellranger, "count", "filtered_feature_bc_matrix")
@@ -31,10 +32,10 @@ dir_epitope_matching <- file.path(dir_data, "EpitopeMatching")
 dir_epitope_output <- file.path(dir_epitope_matching, "output")
 file_epitope_split_tra <- file.path(dir_epitope_matching, "Parenchymal_TCRalpha.txt")
 file_epitope_split_trb <- file.path(dir_epitope_matching, "Parenchymal_TCRbeta.txt")
-file_vdjdb_export <- file.path(dir_external, "VJDB_SearchTable-2022-01-23 20_11_27.798.tsv")
+file_vdjdb_export <- file.path(dir_data_external, "VJDB_SearchTable-2022-01-23 20_11_27.798.tsv")
 file_vdjdb_clean_alpha <- file.path(dir_epitope_matching, "VDJdb_clean_TCRalpha.tsv")
 file_vdjdb_clean_beta <- file.path(dir_epitope_matching, "VDJdb_clean_TCRbeta.tsv")
-file_iedb_export <- file.path(dir_external, "IEDB_tcell_receptor_table_export_1642966412.csv")
+file_iedb_export <- file.path(dir_data_external, "IEDB_tcell_receptor_table_export_1642966412.csv")
 file_iedb_clean_alpha <- file.path(dir_epitope_matching, "IEDB_clean_TCRalpha.tsv")
 file_iedb_clean_beta <- file.path(dir_epitope_matching, "IEDB_clean_TCRbeta.tsv")
 file_combined_db_alpha <- file.path(dir_epitope_matching, "combined_epitope_db_alpha.tsv")
@@ -42,12 +43,6 @@ file_combined_db_beta <- file.path(dir_epitope_matching, "combined_epitope_db_be
 file_combined_alpha <- file.path(dir_epitope_output, "alpha_combined.tsv")
 file_combined_beta <- file.path(dir_epitope_output, "beta_combined.tsv")
 file_matched_epitopes <- file.path(dir_epitope_output, "matched_epitopes.tsv")
-
-
-# VDJTools
-dir_vdjtools <- file.path(dir_data, "VDJTools")
-dir_vdjtools_input <- file.path(dir_vdjtools, "input")
-dir_vdjtools_output <- file.path(dir_vdjtools, "output")
 
 
 # Un-normalized and normalized Seurat objects, no analysis included
@@ -121,6 +116,7 @@ dir_figures_allcells <- file.path(dir_figures, "AllCells")
 dir_figures_cd8 <- file.path(dir_figures, "CD8")
 dir_figures_cd4 <- file.path(dir_figures, "CD4")
 dir_figures_gd <- file.path(dir_figures, "GammaDelta")
+dir_figures_paper <- file.path(dir_figures, "Paper")
 
 
 # Ensure all directories we plan to read/write to exist. 
@@ -132,4 +128,6 @@ for (D in dirs) {
     print(paste0("Created directory ", dir_eval))
   }
 }
+
+rm(D)
 

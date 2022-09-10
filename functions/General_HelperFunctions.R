@@ -55,24 +55,6 @@ ensemblToGeneName <- function( genes ) {
 }
 
 
-# Downsamples each genotype to have the same number of cells. Returns a new
-# Seurat object with the downsampled data.
-downsample <- function( scRNA ) {
-  counts <- table(scRNA$genotype)
-  downsamp <- min(counts)
-  cells <- c()
-  
-  set.seed(10)
-  for (N in names(counts)) {
-    subs <- filter(scRNA@meta.data, genotype == N)
-    cells <- c(cells, sample(rownames(subs), downsamp))
-  }
-  
-  scRNA.down <- subset(scRNA, cells = cells)
-  scRNA.down
-}
-
-
 # Reads significant genes from specific tabs of the genotype diff genes file.
 # filename: full file path to the genotype diff genes file, generated from
 #           writeGenotypeDifferentialGenes().
