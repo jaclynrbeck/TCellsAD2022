@@ -1,4 +1,4 @@
 *.mtx.gz filter=lfs diff=lfs merge=lfs -text
 *.h5 filter=lfs diff=lfs merge=lfs -text
-*IEDB_tcell_receptor*.csv filter=lfs diff=lfs merge=lfs -text
-*VJDB_SearchTable*.tsv filter=lfs diff=lfs merge=lfs -text
+data/External/IEDB_tcell_receptor_table_export_1642966412.csv filter=lfs diff=lfs merge=lfs -text
+data/External/VJDB_SearchTable-2022-01-23[[:space:]]20_11_27.798.tsv filter=lfs diff=lfs merge=lfs -text
