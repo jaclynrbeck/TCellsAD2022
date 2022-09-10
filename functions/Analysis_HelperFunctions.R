@@ -113,18 +113,8 @@ getSinglePositiveCells <- function( scRNA ) {
 }
 
 
-matchTcrs <- function( scRNA, tcr.anno, tcr.epi = NULL ) {
+matchTcrs <- function( scRNA, tcr.anno ) {
   tcr.match <- subset(tcr.anno, Seurat.Barcode %in% colnames(scRNA))
-
-  if (is.null(tcr.epi)) {
-    return(tcr.match)
-  }
-  
-  merged <- merge(tcr.match, tcr.epi, by = c("ClonotypeId"), 
-                  all.x = TRUE, all.y = FALSE)
-
-  rownames(merged) <- merged$Sample
-  return(merged)
 }
 
 
